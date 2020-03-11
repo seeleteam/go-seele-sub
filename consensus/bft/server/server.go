@@ -52,6 +52,8 @@ type server struct {
 
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
+
+	processStep int64
 }
 
 const (
@@ -126,6 +128,7 @@ func NewServer(config *BFT.BFTConfig, privateKey *ecdsa.PrivateKey, db database.
 		knownMessages:  knownMessages,
 	}
 	server.core = bftCore.NewCore(server, server.config)
+	server.processStep = 0
 	return server
 }
 
@@ -145,6 +148,8 @@ func (s *server) EventMux() *event.TypeMux {
 
 // Broadcast sends a message to all Verifiers (include self)
 func (s *server) Broadcast(verSet bft.VerifierSet, payload []byte) error {
+	s.processStep++
+	s.log.Info("[bft-one-block] Broadcast, step %d", s.processStep)
 	// fan out
 	s.Gossip(verSet, payload)
 	// inform self with event message
@@ -158,6 +163,8 @@ func (s *server) Broadcast(verSet bft.VerifierSet, payload []byte) error {
 
 // Gossip sends a message to all Verifiers (exclude self)
 func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
+	s.processStep++
+	s.log.Info("[bft-one-block] Gossip, step %d", s.processStep)
 	hash := crypto.HashBytes(payload)
 	s.knownMessages.Add(hash, true)
 
@@ -194,6 +201,8 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 // Commit delivers an approved proposal to backend.
 // The delivered proposal will be put into blockchain.
 func (s *server) Commit(proposal bft.Proposal, seals [][]byte) error {
+	s.processStep++
+	s.log.Info("[bft-one-block] Commit, step %d", s.processStep)
 	// 1. check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -243,7 +252,8 @@ func (s *server) Commit(proposal bft.Proposal, seals [][]byte) error {
 // Verify verifies the proposal. If a consensus.ErrBlockCreateTimeOld error is returned,
 // the time difference of the proposal and current time is also returned.
 func (s *server) Verify(proposal bft.Proposal) (time.Duration, error) {
-
+	s.processStep++
+	s.log.Info("[bft-one-block] Verify, step %d", s.processStep)
 	// 1. check proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -270,6 +280,8 @@ func (s *server) Verify(proposal bft.Proposal) (time.Duration, error) {
 
 // Sign signs input data with the backend's private key
 func (s *server) Sign(data []byte) ([]byte, error) {
+	s.processStep++
+	s.log.Info("[bft-one-block] Sign, step %d", s.processStep)
 	hashData := crypto.Keccak256([]byte(data))
 	sign, err := crypto.Sign(s.privateKey, hashData)
 	return sign.Sig, err

@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"math/big"
 	"sync"
@@ -95,6 +96,7 @@ func (c *core) broadcast(msg *message) {
 		c.log.Error("Failed to broadcast message. msg %v. err %s. state %d", msg, err, c.state)
 		return
 	}
+	c.log.Info("[bft-one-block] step 5 broadcast")
 }
 
 // finalizeMessage prepare the seal with proposal and sign data, return the payload with signature.
@@ -125,13 +127,15 @@ func (c *core) finalizeMessage(msg *message) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	c.log.Info("[core] finalizeMessage")
 	return payload, nil
 
 }
 
 // PrepareCommittedSeal returns a committed seal for the given hash
 func PrepareCommittedSeal(hash common.Hash) []byte {
+	fmt.Println("[core] PrepareCommittedSeal")
+
 	var buf bytes.Buffer
 	buf.Write(hash.Bytes())
 	buf.Write([]byte{byte(msgCommit)})

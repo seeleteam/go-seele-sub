@@ -65,6 +65,9 @@ const (
 	// spow miner algorithm
 	BFTSubAlgorithm = "bft_sub"
 
+	// FeeCollector
+	FeeCollector = "0x7460dde5d3da978dd719aa5c6e35b7b8564682d1"
+
 	// BFT mineralgorithm
 	BFTEngine = "bft"
 

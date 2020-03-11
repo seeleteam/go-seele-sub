@@ -79,6 +79,8 @@ var (
 // SealResult generates a new block for the given input block with the local miner's Seal.
 func (s *server) SealResult(chain consensus.ChainReader, block *types.Block, stop <-chan struct{}) (*types.Block, error) {
 	// update the block header timestamp and signature and propose the block to core engine
+	s.processStep++
+	s.log.Info("[bft-one-block] SealResult, step %d", s.processStep)
 	header := block.Header
 	number := header.Height
 
@@ -196,6 +198,8 @@ out:
 // verifyHeader !!!
 // verify 1.consensus- 2.createTime- 3.extraData- 4.the block is not voting on add or remove one verifier-difficulty
 func (s *server) verifyHeader(chain consensus.ChainReader, header *types.BlockHeader, parents []*types.BlockHeader) error {
+	s.processStep++
+	s.log.Info("[bft-one-block] verifyHeader, step %d", s.processStep)
 	err := s.verifyHeaderCommon(header, parents)
 	if err != nil {
 		return err
@@ -205,6 +209,8 @@ func (s *server) verifyHeader(chain consensus.ChainReader, header *types.BlockHe
 
 // verifyHeaderCommon verify some fields of Header
 func (s *server) verifyHeaderCommon(header *types.BlockHeader, parents []*types.BlockHeader) error {
+	s.processStep++
+	s.log.Info("[bft-one-block] verifyHeaderCommon, step %d", s.processStep)
 	if header.Consensus != types.BftConsensus {
 		fmt.Printf("verifyHeaderCommon[185] header.Consensus (%d) != types.BftConsensus (%d)\n", header.Consensus, types.BftConsensus)
 		return errBFTConsensus
@@ -232,6 +238,8 @@ func (s *server) verifyHeaderCommon(header *types.BlockHeader, parents []*types.
 
 // verifyBFTCore verify BFT consectiveness, signatures and committed seeles
 func (s *server) verifyBFTCore(chain consensus.ChainReader, header *types.BlockHeader, parents []*types.BlockHeader) error {
+	s.processStep++
+	s.log.Info("[bft-one-block] verifyBFTCore, step %d", s.processStep)
 	number := header.Height
 	if number == 0 {
 		return nil
@@ -267,6 +275,8 @@ func (s *server) verifyBFTCore(chain consensus.ChainReader, header *types.BlockH
 // verifyCommittedSeals checks whether every committed seal is signed by one of the parent's validators
 func (s *server) verifyCommittedSeals(chain consensus.ChainReader, header *types.BlockHeader, parents []*types.BlockHeader) error {
 	// check height, if 0 (genesis) return nil
+	s.processStep++
+	s.log.Info("[bft-one-block] verifyCommittedSeals, step %d", s.processStep)
 	number := header.Height
 	if number == 0 {
 		return nil
@@ -290,6 +300,8 @@ func (s *server) verifyCommittedSeals(chain consensus.ChainReader, header *types
 	proposalSeal := bftCore.PrepareCommittedSeal(header.Hash())
 	// 1. get committed seals from current header
 	for _, seal := range extra.CommittedSeal {
+		s.log.Error("\n\n [Tally] got %d commited seals", len(extra.CommittedSeal))
+		s.log.Error(" [Tally] got committedSeal %+v \n\n", extra.CommittedSeal)
 		addr, err := bft.GetSignatureAddress(proposalSeal, seal)
 		if err != nil {
 			s.log.Error("not a valid address")
@@ -297,11 +309,12 @@ func (s *server) verifyCommittedSeals(chain consensus.ChainReader, header *types
 		}
 		if verifiers.RemoveVerifier(addr) {
 			validSealCount++
+			s.log.Error(" [Tally] got valid committedSeal from addr %s", addr)
 		} else {
 			return errCommittedSealsInvalid
 		}
 	}
-	s.log.Debug("got %d valid seals", validSealCount)
+	s.log.Info(" [Tally] got %d valid seals, frm %d verifiers, require %d", validSealCount, snap.VerSet.Size(), 2*snap.VerSet.F())
 	s.log.Debug("%d verifiers", snap.VerSet.Size())
 	// for i, ver := range snap.VerSet.List() {
 	// 	s.log.Error("%d, verifier %+v", i, ver)
@@ -309,7 +322,7 @@ func (s *server) verifyCommittedSeals(chain consensus.ChainReader, header *types
 	s.log.Debug("%d verifiers", snap.VerSet.Size())
 	// 2. The length of validSeal should be larger than number of faulty node + 1
 	// if validSealCount <= 2*snap.VerSet.F() { // FIXME <= or <??
-	s.log.Info("Tally: validSealCount: %d require: %d", validSealCount, 2*snap.VerSet.F())
+	s.log.Debug(" [Tally]: validSealCount: %d require: %d", validSealCount, 2*snap.VerSet.F())
 
 	if validSealCount < 2*snap.VerSet.F() {
 		s.log.Debug("validSealCount ", validSealCount, "require ", 2*snap.VerSet.F())
@@ -319,6 +332,8 @@ func (s *server) verifyCommittedSeals(chain consensus.ChainReader, header *types
 }
 
 func (s *server) verifySigner(chain consensus.ChainReader, header *types.BlockHeader, parents []*types.BlockHeader) error {
+	s.processStep++
+	s.log.Info("[bft-one-block] verifySigner, step %d", s.processStep)
 	number := header.Height
 	if number == 0 {
 		return errBlockUnknown
@@ -344,6 +359,8 @@ func (s *server) verifySigner(chain consensus.ChainReader, header *types.BlockHe
 
 // VerifySeal : make sure the signers are in parent's verifier set
 func (s *server) VerifySeal(chain consensus.ChainReader, header *types.BlockHeader) error {
+	s.processStep++
+	s.log.Info("[bft-one-block] VerifySeal, step %d", s.processStep)
 	height := header.Height
 	if height == 0 { //
 		fmt.Printf("height = %+v\n", height)
@@ -399,7 +416,8 @@ func sigHash(header *types.BlockHeader) (hash common.Hash) {
 // snapshot used to verfify the authentication.
 func (ser *server) snapshot(chain consensus.ChainReader, height uint64, hash common.Hash, parents []*types.BlockHeader) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk for checkpoints
-
+	ser.processStep++
+	ser.log.Info("[bft-one-block] snapshot, step %d", ser.processStep)
 	if len(parents) > 0 {
 		ser.log.Info("get multply parentHeaders")
 		for i, parent := range parents {
@@ -585,6 +603,8 @@ func prepareExtra(header *types.BlockHeader, vers []common.Address) ([]byte, err
 
 // updateBlock update timestamp and signature of the block based on its number of transactions
 func (s *server) updateBlock(parent *types.BlockHeader, block *types.Block) (*types.Block, error) {
+	s.processStep++
+	s.log.Info("[bft-one-block] updateBlock, step %d", s.processStep)
 	header := block.Header
 	// sign the hash
 	seal, err := s.Sign(sigHash(header).Bytes())
@@ -639,6 +659,7 @@ func writeCommittedSeals(h *types.BlockHeader, committedSeals [][]byte) error {
 	}
 
 	bftExtra.CommittedSeal = make([][]byte, len(committedSeals))
+
 	copy(bftExtra.CommittedSeal, committedSeals)
 
 	payload, err := rlp.EncodeToBytes(&bftExtra)
@@ -647,5 +668,6 @@ func writeCommittedSeals(h *types.BlockHeader, committedSeals [][]byte) error {
 	}
 
 	h.ExtraData = append(h.ExtraData[:types.BftExtraVanity], payload...)
+	fmt.Println("[Tally] write committedSeals to header extra")
 	return nil
 }

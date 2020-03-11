@@ -10,6 +10,7 @@ import (
 
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/common/errors"
+	"github.com/seeleteam/go-seele/common/hexutil"
 	"github.com/seeleteam/go-seele/contract/system"
 	"github.com/seeleteam/go-seele/core/state"
 	"github.com/seeleteam/go-seele/core/store"
@@ -96,7 +97,10 @@ func Process(ctx *Context, height uint64) (*types.Receipt, error) {
 		refund = maxRefund
 	}
 	receipt.UsedGas -= refund
-
+	// subchain will handle the tx fee differently, will be collected to one account and then split evenly to all validators per relay period.
+	if ctx.BlockHeader.Consensus == types.BftConsensus {
+		return handleFeeSuchain(ctx, receipt, snapshot)
+	}
 	return handleFee(ctx, receipt, snapshot)
 }
 
@@ -221,6 +225,40 @@ func handleFee(ctx *Context, receipt *types.Receipt, snapshot int) (*types.Recei
 	// Note, the sender should always have enough balance.
 	ctx.Statedb.SubBalance(ctx.Tx.Data.From, totalFee)
 	ctx.Statedb.AddBalance(ctx.BlockHeader.Creator, totalFee)
+	receipt.TotalFee = totalFee.Uint64()
+
+	// Record statedb hash
+	var err error
+	if receipt.PostState, err = ctx.Statedb.Hash(); err != nil {
+		err = errors.NewStackedError(err, "failed to get statedb root hash")
+		return nil, revertStatedb(ctx.Statedb, snapshot, err)
+	}
+
+	// Add logs
+	receipt.Logs = ctx.Statedb.GetCurrentLogs()
+	if receipt.Logs == nil {
+		receipt.Logs = make([]*types.Log, 0)
+	}
+
+	return receipt, nil
+}
+
+// handleFeeSuchain handle the fee of subchain, the fee will be sent to one account.
+func handleFeeSuchain(ctx *Context, receipt *types.Receipt, snapshot int) (*types.Receipt, error) {
+	// Calculating the total fee
+	// For normal tx: fee = 20k * 1 Fan/gas = 0.0002 Seele
+	// For contract tx, average gas per tx is about 100k on ETH, fee = 100k * 1Fan/gas = 0.001 Seele
+	usedGas := new(big.Int).SetUint64(receipt.UsedGas)
+	totalFee := new(big.Int).Mul(usedGas, ctx.Tx.Data.GasPrice)
+
+	// Transfer fee to coinbase
+	// Note, the sender should always have enough balance.
+	ctx.Statedb.SubBalance(ctx.Tx.Data.From, totalFee)
+
+	// ctx.Statedb.AddBalance(ctx.BlockHeader.Creator, totalFee)
+	feeCollector := common.BytesToAddress(hexutil.MustHexToBytes(common.FeeCollector))
+	// feeCollector := common.HexMustToAddres(common.FeeCollector)
+	ctx.Statedb.AddBalance(feeCollector, totalFee)
 	receipt.TotalFee = totalFee.Uint64()
 
 	// Record statedb hash

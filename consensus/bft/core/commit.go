@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"reflect"
 
 	"github.com/seeleteam/go-seele/common"
@@ -88,15 +87,22 @@ func (c *core) handleCommit(msg *message, src bft.Verifier) error {
 	}
 	c.acceptCommit(msg, src)
 
-	fmt.Printf("commits size %d and state %+v (StateCommitted %d)\n", c.current.Commits.Size(), c.state, StateCommitted)
+	c.log.Info("[Tally] commits size %d and state %+v (StateCommitted %d)\n", c.current.Commits.Size(), c.state, StateCommitted)
 
 	// if we already have enough commit and meanwhile not in committed state-> commit!
+
 	if c.current.Commits.Size() > 2*c.verSet.F() && c.state.Cmp(StateCommitted) < 0 {
 		// Still need to call LockHash here since state can skip Prepared state and jump directly to the Committed state.
 		c.log.Info("already got enough commits and not in committed state")
 		c.current.LockHash()
 		c.commit()
 	}
+
+	// if c.current.Commits.Size() > c.verSet.Size()-c.verSet.F() && c.state.Cmp(StateCommitted) < 0 {
+	// 	c.current.LockHash()
+	// 	c.commit()
+	// }
+
 	c.log.Info("successfully handle commit msg %+v", msg)
 	return nil
 }

@@ -40,9 +40,11 @@ func (c *core) sendPreprepare(request *bft.Request) {
 //
 // Decode -> checkMessage(make usre it is new) -> ensure it is from proposer -> verify proposal received -> accept preprepare
 func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
-	c.log.Info("bft-0 handlePreprepare msg")
+	c.log.Info("bft pro -0 handlePreprepare msg")
 	// 1. Decode preprepare message first
 	var preprepare *bft.Preprepare
+	c.log.Info("bft pro - 1 decode preapre msg")
+
 	err := msg.Decode(&preprepare)
 	if err != nil {
 		return errDecodePreprepare
@@ -50,6 +52,8 @@ func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
 
 	// we need to check the message: ensure we have the same view with the preprepare message
 	// if not (namely, it is old message), see if we need to broadcast Commit.
+	c.log.Info("bft pro - 2 check preapre msg")
+
 	if err := c.checkMessage(msgPreprepare, preprepare.View); err != nil {
 		if err == errOldMsg {
 			// get all verifiers for this proposal
@@ -71,6 +75,8 @@ func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
 		c.log.Warn("igonore preprepare message since it is not the proposer")
 		return errNotProposer
 	}
+
+	c.log.Info("bft pro - 3 verify preapre proposal")
 
 	// verify the proposal we received
 	if duration, err := c.server.Verify(preprepare.Proposal); err != nil {
@@ -94,8 +100,12 @@ func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
 	if c.state == StateAcceptRequest {
 		if c.current.IsHashLocked() { // there is a locked proposal
 			if preprepare.Proposal.Hash() == c.current.GetLockedHash() { // at the same proposal
+
+				c.log.Info("bft pro - 4 acceptPreprepare")
 				c.acceptPreprepare(preprepare)
+				c.log.Info("bft pro - 5 setState")
 				c.setState(StatePreprepared)
+				c.log.Info("bft pro - 6 sendCommit")
 				c.sendCommit()
 			} else { // at different proposals. change round
 				c.sendNextRoundChange()
