@@ -98,11 +98,6 @@ func (c *core) handleCommit(msg *message, src bft.Verifier) error {
 		c.commit()
 	}
 
-	// if c.current.Commits.Size() > c.verSet.Size()-c.verSet.F() && c.state.Cmp(StateCommitted) < 0 {
-	// 	c.current.LockHash()
-	// 	c.commit()
-	// }
-
 	c.log.Info("successfully handle commit msg %+v", msg)
 	return nil
 }
