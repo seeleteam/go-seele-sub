@@ -8,23 +8,27 @@ package seele
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/seeleteam/go-seele/api"
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/consensus"
 	"github.com/seeleteam/go-seele/core"
 	"github.com/seeleteam/go-seele/core/store"
 	"github.com/seeleteam/go-seele/core/types"
+	"github.com/seeleteam/go-seele/crypto"
 	"github.com/seeleteam/go-seele/database"
 	"github.com/seeleteam/go-seele/database/leveldb"
 	"github.com/seeleteam/go-seele/event"
 	"github.com/seeleteam/go-seele/log"
+	"github.com/seeleteam/go-seele/merkle"
 	"github.com/seeleteam/go-seele/miner"
 	"github.com/seeleteam/go-seele/node"
 	"github.com/seeleteam/go-seele/p2p"
 	"github.com/seeleteam/go-seele/rpc"
-	"github.com/seeleteam/go-seele/seele/download"
+	downloader "github.com/seeleteam/go-seele/seele/download"
 )
 
 const chainHeaderChangeBuffSize = 100
@@ -44,6 +48,10 @@ type SeeleService struct {
 	chainDBPath        string
 	accountStateDB     database.Database // database used to store account state info.
 	accountStateDBPath string
+	accountIndexDB     database.Database // database used to store account to index mapping.
+	accountIndexDBPath string
+	indexAccountDB     database.Database // database used to store index to account mapping.
+	indexAccountDBPath string
 	debtManagerDB      database.Database // database used to store debts in debt manager.
 	debtManagerDBPath  string
 	miner              *miner.Miner
@@ -52,6 +60,8 @@ type SeeleService struct {
 	chainHeaderChangeChannel chan common.Hash
 
 	debtVerifier types.DebtVerifier
+
+	genesisInfo core.GenesisInfo
 }
 
 // ServiceContext is a collection of service configuration inherited from node
@@ -61,6 +71,12 @@ type ServiceContext struct {
 
 // AccountStateDB return account state db
 func (s *SeeleService) AccountStateDB() database.Database { return s.accountStateDB }
+
+// AccountIndexDB return account index db
+func (s *SeeleService) AccountIndexDB() database.Database { return s.accountIndexDB }
+
+// IndexAccountDB return index account db
+func (s *SeeleService) IndexAccountDB() database.Database { return s.indexAccountDB }
 
 // BlockChain get blockchain
 func (s *SeeleService) BlockChain() *core.Blockchain { return s.chain }
@@ -84,8 +100,12 @@ func (s *SeeleService) Miner() *miner.Miner { return s.miner }
 func (s *SeeleService) Downloader() *downloader.Downloader {
 	return s.seeleProtocol.Downloader()
 }
+
 // P2PServer get p2pServer
 func (s *SeeleService) P2PServer() *p2p.Server { return s.p2pServer }
+
+// Genesis Genesis information
+func (s *SeeleService) GenesisInfo() core.GenesisInfo { return s.genesisInfo }
 
 // NewSeeleService create SeeleService
 func NewSeeleService(ctx context.Context, conf *node.Config, log *log.SeeleLog, engine consensus.Engine, verifier types.DebtVerifier, startHeight int) (s *SeeleService, err error) {
@@ -94,9 +114,16 @@ func NewSeeleService(ctx context.Context, conf *node.Config, log *log.SeeleLog, 
 		networkID:    conf.P2PConfig.NetworkID,
 		netVersion:   conf.BasicConfig.Version,
 		debtVerifier: verifier,
+		genesisInfo:  conf.SeeleConfig.GenesisConfig,
 	}
 
 	serviceContext := ctx.Value("ServiceContext").(ServiceContext)
+
+	// var serviceContext ServiceContext
+	// if conf.BasicConfig.Subchain {
+	// 	serviceContext = ctx.Value("SubchainServiceContext").(ServiceContext)
+	// }
+	fmt.Printf("start to initiate service with conf %+v", conf)
 
 	// Initialize blockchain DB.
 	if err = s.initBlockchainDB(&serviceContext); err != nil {
@@ -115,9 +142,17 @@ func NewSeeleService(ctx context.Context, conf *node.Config, log *log.SeeleLog, 
 		return nil, err
 	}
 
-	s.miner = miner.NewMiner(conf.SeeleConfig.Coinbase, s, s.debtVerifier, engine)
+	if conf.BasicConfig.MinerAlgorithm == common.BFTSubchainEngine {
+		if err = s.initAccountIndexDB(&serviceContext); err != nil {
+			return nil, err
+		}
 
-	// initialize and validate genesis
+		if err = s.initIndexAccountDB(&serviceContext); err != nil {
+			return nil, err
+		}
+	}
+
+	s.miner = miner.NewMiner(conf.SeeleConfig.Coinbase, s, s.debtVerifier, engine)
 	if err = s.initGenesisAndChain(&serviceContext, conf, startHeight); err != nil {
 		return nil, err
 	}
@@ -160,6 +195,36 @@ func (s *SeeleService) initAccountStateDB(serviceContext *ServiceContext) (err e
 	return nil
 }
 
+func (s *SeeleService) initAccountIndexDB(serviceContext *ServiceContext) (err error) {
+	s.accountIndexDBPath = filepath.Join(serviceContext.DataDir, AccountIndexDir)
+	s.log.Info("NewSeeleService account index datadir is %s", s.accountIndexDBPath)
+
+	if s.accountIndexDB, err = leveldb.NewLevelDB(s.accountIndexDBPath); err != nil {
+		s.Stop()
+		s.log.Error("NewSeeleService Create BlockChain err: failed to create account index DB, %s", err)
+		return err
+	}
+
+	return nil
+}
+
+func (s *SeeleService) initIndexAccountDB(serviceContext *ServiceContext) (err error) {
+	s.indexAccountDBPath = filepath.Join(serviceContext.DataDir, IndexAccountDir)
+	s.log.Info("NewSeeleService index account datadir is %s", s.indexAccountDBPath)
+
+	if s.indexAccountDB, err = leveldb.NewLevelDB(s.indexAccountDBPath); err != nil {
+		s.Stop()
+		s.log.Error("NewSeeleService Create BlockChain err: failed to create index state DB, %s", err)
+		return err
+	}
+
+	return nil
+}
+
+func (s *SeeleService) GetAccountIndexDB() database.Database { return s.accountIndexDB }
+
+func (s *SeeleService) GetIndexAccountDB() database.Database { return s.indexAccountDB }
+
 func (s *SeeleService) initDebtManagerDB(serviceContext *ServiceContext) (err error) {
 	s.debtManagerDBPath = filepath.Join(serviceContext.DataDir, DebtManagerDir)
 	s.log.Info("NewSeeleService debt manager datadir is %s", s.debtManagerDBPath)
@@ -175,7 +240,16 @@ func (s *SeeleService) initDebtManagerDB(serviceContext *ServiceContext) (err er
 
 func (s *SeeleService) initGenesisAndChain(serviceContext *ServiceContext, conf *node.Config, startHeight int) (err error) {
 	bcStore := store.NewCachedStore(store.NewBlockchainDatabase(s.chainDB))
+	fmt.Printf("starting to getGenesis with GenesisConfig %+v", conf.SeeleConfig.GenesisConfig)
 	genesis := core.GetGenesis(&conf.SeeleConfig.GenesisConfig)
+
+	extraInfo, err := s.getExtraInfo(&conf.SeeleConfig.GenesisConfig)
+	if err != nil {
+		s.Stop()
+		s.log.Error("NewSeeleService genesis.updating second witness err. %s", err)
+		return err
+	}
+	genesis.UpdateSecondWitness(extraInfo)
 
 	if err = genesis.InitializeAndValidate(bcStore, s.accountStateDB); err != nil {
 		s.Stop()
@@ -191,6 +265,40 @@ func (s *SeeleService) initGenesisAndChain(serviceContext *ServiceContext, conf 
 	}
 
 	return nil
+}
+
+func (s *SeeleService) getExtraInfo(info *core.GenesisInfo) ([]byte, error) {
+
+	// initialize stateHashStem
+	var level = make([]common.Hash, 0)
+	for index := 0; index < len(info.Validators); index++ {
+		indexBytes, err := rlp.EncodeToBytes(uint(index))
+		if err != nil {
+			return nil, err
+		}
+		if err = s.GetAccountIndexDB().Put(info.Validators[index].Bytes(), indexBytes); err != nil {
+			return nil, err
+		}
+
+		if err := s.GetIndexAccountDB().Put(indexBytes, info.Validators[index].Bytes()); err != nil {
+			return nil, err
+		}
+
+		state := []interface{}{
+			info.Validators[index].Bytes(),
+			big.NewInt(0),
+			uint64(0),
+		}
+
+		stateBytes, _ := rlp.EncodeToBytes(state)
+		level = append(level, crypto.MustHash(stateBytes))
+
+	}
+
+	stateHashStem := merkle.GetBinaryMerkleRoot(level)
+
+	return types.PrepareSecondWitness(nil, nil, nil, uint64(len(info.Validators)), common.EmptyHash, stateHashStem, common.EmptyHash, crypto.Signature{})
+
 }
 
 func (s *SeeleService) initPool(conf *node.Config) (err error) {

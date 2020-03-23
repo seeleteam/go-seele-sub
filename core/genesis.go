@@ -59,11 +59,15 @@ type GenesisInfo struct {
 	// Validators Bft consensus validators
 	Validators []common.Address `json:"validators"`
 
+	Rootaccounts []common.Address `json:"rootaccounts"`
+
 	// master account
 	Masteraccount common.Address `json:"master"`
 
 	// balance of the master account
 	Balance *big.Int `json:"balance"`
+	// subchain max supply
+	Supply *big.Int `json:"supply"`
 }
 
 // NewGenesisInfo mainchain genesis block info constructor
@@ -86,7 +90,7 @@ func NewGenesisInfo(accounts map[common.Address]*big.Int, difficult int64, shard
 		balance = big.NewInt(17500000000000000)
 	} else {
 		masteraccount, _ = common.HexToAddress("0x0000000000000000000000000000000000000000")
-		balance = big.NewInt(0)
+		balance = big.NewInt(1)
 	}
 	return &GenesisInfo{
 		Accounts:        accounts,
@@ -100,20 +104,23 @@ func NewGenesisInfo(accounts map[common.Address]*big.Int, difficult int64, shard
 	}
 }
 
-//NewGenesisInfoSubchain subchain genesis block constructor
-func NewGenesisInfoSubchain(accounts map[common.Address]*big.Int, difficult int64, shard uint, timestamp *big.Int,
-	consensus types.ConsensusType, validator []common.Address, masteraccount common.Address, balance *big.Int) *GenesisInfo {
-	return &GenesisInfo{
-		Accounts:        accounts,
-		Difficult:       difficult,
-		ShardNumber:     shard,
-		CreateTimestamp: timestamp,
-		Consensus:       consensus,
-		Validators:      validator,
-		Masteraccount:   masteraccount,
-		Balance:         balance,
-	}
-}
+// //NewGenesisInfoSubchain subchain genesis block constructor
+// func NewGenesisInfoSubchain(accounts map[common.Address]*big.Int, difficult int64, shard uint, timestamp *big.Int,
+// 	consensus types.ConsensusType, validator []common.Address, masteraccount common.Address, balance *big.Int, creator common.Address) *GenesisInfo {
+
+// 	masteraccount, _ = common.HexToAddress("0xc6c5c85c585ee33aae502b874afe6cbc3727ebf1")
+// 	balance = big.NewInt(17500000000000000)
+// 	return &GenesisInfo{
+// 		Accounts:        accounts,
+// 		Difficult:       difficult,
+// 		ShardNumber:     shard,
+// 		CreateTimestamp: timestamp,
+// 		Consensus:       consensus,
+// 		Validators:      validator,
+// 		Masteraccount:   masteraccount,
+// 		Balance:         balance,
+// 	}
+// }
 
 // Hash returns GenesisInfo hash
 func (info *GenesisInfo) Hash() common.Hash {
@@ -130,6 +137,14 @@ type shardInfo struct {
 	ShardNumber uint
 }
 
+// genesisExtraVerifyInfo we use header hash to verify genesis block, all other fields not in header can be serialize in this field (e.g. shard)
+type genesisExtraVerifyInfo struct {
+	ShardNumber  uint
+	Master       common.Address
+	Supply       *big.Int
+	RootAccounts []common.Address
+}
+
 // GetGenesis gets the genesis block according to accounts' balance
 func GetGenesis(info *GenesisInfo) *Genesis {
 	if info.Difficult <= 0 {
@@ -141,18 +156,54 @@ func GetGenesis(info *GenesisInfo) *Genesis {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println("the genesis consensus algorithm", info.Consensus)
 
 	extraData := []byte{}
-	if info.Consensus == types.IstanbulConsensus || info.Consensus == types.BftConsensus {
+	if info.Consensus == types.IstanbulConsensus {
 		extraData = generateConsensusInfo(info.Validators)
-		fmt.Printf("consensus is %d extraData initiated with %v", types.BftConsensus, info.Validators)
+		fmt.Printf("consensus is %d extraData initiated with %v", types.IstanbulConsensus, info.Validators)
 	}
 
-	shard := common.SerializePanic(shardInfo{
+	if info.Consensus == types.BftConsensus { // 2 : Bft
+		// vers, verErr := initateValidators(info.Masteraccount)
+		vers, verErr := initateValidators(info.Validators)
+
+		if verErr != nil { // if there is no verifier, need to add verifier(s) later to use bft
+			panic("Can not initate bft validators")
+		}
+		info.Validators = vers
+		extraData = getGenesisExtraData(info.Validators)
+		fmt.Printf("consensus is %d extraData initiated with %v\n", types.BftConsensus, info.Validators)
+
+	}
+
+	if info.Consensus == types.BftConsensus {
+		genesisExtraVerifyInfo := common.SerializePanic(genesisExtraVerifyInfo{
+			ShardNumber:  info.ShardNumber,
+			Master:       info.Masteraccount,
+			Supply:       info.Supply,
+			RootAccounts: info.Rootaccounts,
+		})
+		return &Genesis{
+			header: &types.BlockHeader{
+				PreviousBlockHash: common.EmptyHash,
+				Creator:           common.EmptyAddress,
+				StateHash:         stateRootHash,
+				TxHash:            types.MerkleRootHash(nil),
+				Difficulty:        big.NewInt(info.Difficult),
+				Height:            genesisBlockHeight,
+				CreateTimestamp:   info.CreateTimestamp,
+				Consensus:         info.Consensus,
+				Witness:           genesisExtraVerifyInfo,
+				ExtraData:         extraData,
+			},
+			info: info,
+		}
+	}
+
+	shard := common.SerializePanic(shardInfo{ //
 		ShardNumber: info.ShardNumber,
 	})
-
-	fmt.Println("[subchain] the genesis consensus algorithm", info.Consensus)
 
 	return &Genesis{
 		header: &types.BlockHeader{
@@ -169,6 +220,53 @@ func GetGenesis(info *GenesisInfo) *Genesis {
 		},
 		info: info,
 	}
+}
+
+func (g *Genesis) UpdateSecondWitness(extraInfo []byte) {
+	g.header.SecondWitness = extraInfo
+}
+
+// initateValidators: input: deposit smart contract; payload: bytecode used to call smart contract to get validators list
+// output: validators list and err
+// the inqury will be a transaction, so need some balance to make this inqury
+// SO FAR, in orer to test, we won't put any parameters
+// func (genesis *Genesis) initateValidators(add common.Address, payload []byte) error {
+func initateValidators(verifiers []common.Address) ([]common.Address, error) {
+	// vers := []common.Address{
+	// 	common.BytesToAddress(hexutil.MustHexToBytes("0x7460dde5d3da978dd719aa5c6e35b7b8564682d1")), // todo change to read the creator address from config file
+	// 	// common.BytesToAddress(hexutil.MustHexToBytes("0x4458681e0d642b9781fb86721cf5132ed04db041")),
+	// 	// common.HexToAddress("0xcee66ad4a1909f6b5170dec230c1a69bfc2b21d1"),
+	// 	// "0xcee66ad4a1909f6b5170dec230c1a69bfc2b21d1",
+	// }
+	// fmt.Printf("initiate validators as %+v\n", vers)
+	var vers []common.Address
+	for _, ver := range verifiers {
+		if len(ver) == common.AddressLen {
+			vers = append(vers, ver)
+		} else {
+			return nil, errors.New("failed to initiate validator since verifer address length is not right")
+		}
+	}
+
+	return vers, nil
+}
+
+// getGenesisExtraData convert verifiers addresses into ExtraData
+func getGenesisExtraData(vers []common.Address) []byte {
+	var genesisExtraData []byte
+	genesisExtraData = append(genesisExtraData, bytes.Repeat([]byte{0x00}, types.BftExtraVanity)...)
+	bft := &types.BftExtra{
+		Verifiers:     vers,
+		Seal:          []byte{},
+		CommittedSeal: [][]byte{},
+	}
+	fmt.Printf("encode the extra genesis data with validator %+v", vers)
+	bftPayload, err := rlp.EncodeToBytes(&bft)
+	if err != nil {
+		panic("failed to encode bft extra")
+	}
+	genesisExtraData = append(genesisExtraData, bftPayload...)
+	return genesisExtraData
 }
 
 func generateConsensusInfo(addrs []common.Address) []byte {
@@ -197,6 +295,7 @@ func (genesis *Genesis) GetShardNumber() uint {
 
 // InitializeAndValidate writes the genesis block in the blockchain store if unavailable.
 // Otherwise, check if the existing genesis block is valid in the blockchain store.
+// here if consensus is subchain consensus, we will get the validators from inquerying subchain registeration smart contract which has stored the validators
 func (genesis *Genesis) InitializeAndValidate(bcStore store.BlockchainStore, accountStateDB database.Database) error {
 	storedGenesisHash, err := bcStore.GetBlockHash(genesisBlockHeight)
 
@@ -214,16 +313,32 @@ func (genesis *Genesis) InitializeAndValidate(bcStore store.BlockchainStore, acc
 		return errors.NewStackedErrorf(err, "failed to get genesis block by hash %v", storedGenesisHash)
 	}
 
-	data, err := getShardInfo(storedGenesis)
+	// data, err := getShardInfo(storedGenesis)
+	data, err := getGenesisExtraVerifyInfo(storedGenesis)
 	if err != nil {
 		return errors.NewStackedError(err, "failed to get extra data in genesis block")
 	}
-
+	// check shard number
 	if data.ShardNumber != genesis.info.ShardNumber {
 		return fmt.Errorf("specific shard number %d does not match with the shard number in genesis info %d", data.ShardNumber, genesis.info.ShardNumber)
 	}
 
+	/* If change genesisExtraVerifyInfo structure, make sure change all called methods and verifiy the structure here
+	 */
+
+	if len(data.RootAccounts) != len(genesis.info.Rootaccounts) {
+		return fmt.Errorf("number of root accounts %d does not match with the root accounts in genesis info %d", len(data.RootAccounts), len(genesis.info.Rootaccounts))
+	}
+
+	for i := 0; i < len(data.RootAccounts); i++ {
+		if data.RootAccounts[i] != genesis.info.Rootaccounts[i] {
+			return fmt.Errorf("root account %+v does not match with the root accounts in genesis info %+v", data.RootAccounts[i], genesis.info.Rootaccounts[i])
+
+		}
+	}
+
 	if headerHash := genesis.header.Hash(); !headerHash.Equal(storedGenesisHash) {
+		fmt.Printf("headerHash %s != storeGenesisHash %s\n", headerHash, storedGenesisHash)
 		return ErrGenesisHashMismatch
 	}
 
@@ -243,11 +358,18 @@ func (genesis *Genesis) store(bcStore store.BlockchainStore, accountStateDB data
 		return errors.NewStackedError(err, "failed to commit batch into database")
 	}
 
+	fmt.Printf("put genesis header.hash %s into bcstore\n", genesis.header.Hash())
+
 	if err := bcStore.PutBlockHeader(genesis.header.Hash(), genesis.header, genesis.header.Difficulty, true); err != nil {
 		return errors.NewStackedError(err, "failed to put genesis block header into store")
 	}
 
 	return nil
+}
+
+// GetRootAccounts return root accounts
+func (genesis *Genesis) GetRootAccounts() []common.Address {
+	return genesis.info.Rootaccounts
 }
 
 func getStateDB(info *GenesisInfo) *state.Statedb {
@@ -258,6 +380,9 @@ func getStateDB(info *GenesisInfo) *state.Statedb {
 		info.Balance = big.NewInt(17500000000000000)
 		statedb.CreateAccount(info.Masteraccount)
 		statedb.SetBalance(info.Masteraccount, info.Balance)
+		// create fee account, shard 1 only
+		statedb.CreateAccount(common.SubchainFeeAccount)
+		statedb.SetBalance(common.SubchainFeeAccount, big.NewInt(0))
 	} else if info.ShardNumber == 2 {
 		info.Masteraccount, _ = common.HexToAddress("0xc71265f11acdacffe270c4f45dceff31747b6ac1")
 		info.Balance = big.NewInt(17500000000000000)
@@ -288,6 +413,11 @@ func getStateDB(info *GenesisInfo) *state.Statedb {
 	return statedb
 }
 
+func createSubStateDB(info *GenesisInfo) *state.Statedb {
+	statedb := state.NewEmptyStatedb(nil)
+	return statedb
+}
+
 // getShardInfo returns the extra data of specified genesis block.
 func getShardInfo(genesisBlock *types.Block) (*shardInfo, error) {
 	if genesisBlock.Header.Height != genesisBlockHeight {
@@ -295,6 +425,19 @@ func getShardInfo(genesisBlock *types.Block) (*shardInfo, error) {
 	}
 
 	data := &shardInfo{}
+	if err := common.Deserialize(genesisBlock.Header.Witness, data); err != nil {
+		return nil, errors.NewStackedError(err, "failed to deserialize the extra data of genesis block")
+	}
+
+	return data, nil
+}
+
+func getGenesisExtraVerifyInfo(genesisBlock *types.Block) (*genesisExtraVerifyInfo, error) {
+	if genesisBlock.Header.Height != genesisBlockHeight {
+		return nil, fmt.Errorf("invalid genesis block height %v", genesisBlock.Header.Height)
+	}
+
+	data := &genesisExtraVerifyInfo{}
 	if err := common.Deserialize(genesisBlock.Header.Witness, data); err != nil {
 		return nil, errors.NewStackedError(err, "failed to deserialize the extra data of genesis block")
 	}

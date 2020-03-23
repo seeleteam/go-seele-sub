@@ -55,16 +55,36 @@ func Process(ctx *Context, height uint64) (*types.Receipt, error) {
 	} else { // evm
 		receipt, err = processEvmContract(ctx, leftOverGas)
 	}
-
+	// fmt.Println("svm.go-59, receipt.result", receipt.Result)
 	// account balance is not enough (account.balance < tx.amount)
 	if err == vm.ErrInsufficientBalance {
 		return nil, revertStatedb(ctx.Statedb, snapshot, err)
 	}
 
 	if err != nil {
-		ctx.Statedb.RevertToSnapshot(snapshot)
-		receipt.Failed = true
-		receipt.Result = []byte(err.Error())
+		if height <= common.SmartContractNonceForkHeight {
+			// fmt.Println("smart contract OLD logic")
+			ctx.Statedb.RevertToSnapshot(snapshot)
+			receipt.Failed = true
+			receipt.Result = []byte(err.Error())
+
+		} else {
+			// fmt.Println("smart contract NEW logic")
+			databaseAccountNonce := ctx.Statedb.GetNonce(ctx.Tx.Data.From)
+			setNonce := databaseAccountNonce
+			if ctx.Tx.Data.AccountNonce >= databaseAccountNonce {
+				setNonce = ctx.Tx.Data.AccountNonce + 1
+			}
+			ctx.Statedb.RevertToSnapshot(snapshot)
+			// ctx.Statedb.SetNonce(ctx.Tx.Data.From, setNonce)
+			// set the from account nonce and tx count
+			ctx.Statedb.SetNonce2(ctx.Tx.Data.From, setNonce, ctx.Statedb.GetTxCount(ctx.Tx.Data.From)+1)
+			// set the tx count of to account
+			ctx.Statedb.SetNonce2(ctx.Tx.Data.To, ctx.Statedb.GetNonce(ctx.Tx.Data.To), ctx.Statedb.GetTxCount(ctx.Tx.Data.To)+1)
+			receipt.Failed = true
+			receipt.Result = []byte(err.Error())
+		}
+
 	}
 
 	// include the intrinsic gas
@@ -87,7 +107,9 @@ func processCrossShardTransaction(ctx *Context, snapshot int) (*types.Receipt, e
 	}
 
 	// Add from nonce
-	ctx.Statedb.SetNonce(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1)
+	// ctx.Statedb.SetNonce(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1)
+	ctx.Statedb.SetNonce2(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1, ctx.Statedb.GetTxCount(ctx.Tx.Data.From)+1)
+	ctx.Statedb.SetNonce2(ctx.Tx.Data.To, ctx.Statedb.GetNonce(ctx.Tx.Data.To), ctx.Statedb.GetTxCount(ctx.Tx.Data.To)+1)
 
 	// Transfer amount
 	amount, sender := ctx.Tx.Data.Amount, ctx.Tx.Data.From
@@ -130,7 +152,11 @@ func processSystemContract(ctx *Context, contract system.Contract, snapshot int,
 	}
 
 	// Add from nonce
-	ctx.Statedb.SetNonce(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1)
+	// ctx.Statedb.SetNonce(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1)
+	// from account
+	ctx.Statedb.SetNonce2(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1, ctx.Statedb.GetTxCount(ctx.Tx.Data.From)+1)
+	// to account
+	ctx.Statedb.SetNonce2(ctx.Tx.Data.From, ctx.Statedb.GetNonce(ctx.Tx.Data.To), ctx.Statedb.GetTxCount(ctx.Tx.Data.To)+1)
 
 	// Transfer amount
 	amount, sender, recipient := ctx.Tx.Data.Amount, ctx.Tx.Data.From, ctx.Tx.Data.To
@@ -163,18 +189,24 @@ func processEvmContract(ctx *Context, gas uint64) (*types.Receipt, error) {
 	caller := vm.AccountRef(ctx.Tx.Data.From)
 	var leftOverGas uint64
 
+	// fmt.Println("ctx.Tx.Data.To.IsEmpty()?", ctx.Tx.Data.To.IsEmpty())
 	if ctx.Tx.Data.To.IsEmpty() {
 		var createdContractAddr common.Address
+		// fmt.Println("processEvmContract.go-168:before create accountNonce ", ctx.Tx.Data.AccountNonce)
 		receipt.Result, createdContractAddr, leftOverGas, err = e.Create(caller, ctx.Tx.Data.Payload, gas, ctx.Tx.Data.Amount)
 		if !createdContractAddr.IsEmpty() {
 			receipt.ContractAddress = createdContractAddr.Bytes()
 		}
+		// fmt.Println("processEvmContract.go-173:after create accountNonce ", ctx.Tx.Data.AccountNonce)
 	} else {
-		ctx.Statedb.SetNonce(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1)
+		// ctx.Statedb.SetNonce(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1)// from account
+		ctx.Statedb.SetNonce2(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1, ctx.Statedb.GetTxCount(ctx.Tx.Data.From)+1)
+		// to account
+		ctx.Statedb.SetNonce2(ctx.Tx.Data.To, ctx.Statedb.GetNonce(ctx.Tx.Data.To), ctx.Statedb.GetTxCount(ctx.Tx.Data.To)+1)
 		receipt.Result, leftOverGas, err = e.Call(caller, ctx.Tx.Data.To, ctx.Tx.Data.Payload, gas, ctx.Tx.Data.Amount)
 	}
 	receipt.UsedGas = gas - leftOverGas
-
+	// fmt.Println("svm.go-183 processEVMContract [after Create] err: ", err)
 	return receipt, err
 }
 
@@ -188,7 +220,12 @@ func handleFee(ctx *Context, receipt *types.Receipt, snapshot int) (*types.Recei
 	// Transfer fee to coinbase
 	// Note, the sender should always have enough balance.
 	ctx.Statedb.SubBalance(ctx.Tx.Data.From, totalFee)
-	ctx.Statedb.AddBalance(ctx.BlockHeader.Creator, totalFee)
+	if ctx.BlockHeader.Consensus != types.BftConsensus {
+		ctx.Statedb.AddBalance(ctx.BlockHeader.Creator, totalFee)
+	} else {
+		ctx.Statedb.AddBalance(common.SubchainFeeAccount, totalFee)
+	}
+
 	receipt.TotalFee = totalFee.Uint64()
 
 	// Record statedb hash

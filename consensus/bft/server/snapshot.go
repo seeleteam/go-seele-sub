@@ -38,8 +38,7 @@ type Tally struct {
 
 // Snapshot is the state of the authorization voting at a given point in time.
 type Snapshot struct {
-	Epoch uint64 // The number of blocks after which to checkpoint and reset the pending votes
-
+	Epoch  uint64                   // The number of blocks after which to checkpoint and reset the pending votes
 	Height uint64                   // Block height where the snapshot was created
 	Hash   common.Hash              // Block hash where the snapshot was created
 	Votes  []*Vote                  // List of votes cast in chronological order
@@ -61,8 +60,8 @@ func newSnapshot(epoch uint64, number uint64, hash common.Hash, verSet bft.Verif
 	return snap
 }
 
-// loadSnapshot loads an existing snapshot from the database.
-func loadSnapshot(epoch uint64, db database.Database, hash common.Hash) (*Snapshot, error) {
+// retrieveSnapshot loads an existing snapshot from the database.
+func retrieveSnapshot(epoch uint64, db database.Database, hash common.Hash) (*Snapshot, error) {
 	blob, err := db.Get(append([]byte(dbKeySnapshotPrefix), hash[:]...))
 	if err != nil {
 		return nil, err
@@ -76,8 +75,8 @@ func loadSnapshot(epoch uint64, db database.Database, hash common.Hash) (*Snapsh
 	return snap, nil
 }
 
-// store inserts the snapshot into the database.
-func (s *Snapshot) store(db database.Database) error {
+// save inserts the snapshot into the database.
+func (s *Snapshot) save(db database.Database) error {
 	blob, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -106,7 +105,7 @@ func (s *Snapshot) copy() *Snapshot {
 
 // checkVote return whether it's a valid vote
 func (s *Snapshot) checkVote(address common.Address, authorize bool) bool {
-	_, verifier := s.VerSet.GetByAddress(address)
+	_, verifier := s.VerSet.GetVerByAddress(address)
 	return (verifier != nil && !authorize) || (verifier == nil && authorize)
 }
 
@@ -147,25 +146,44 @@ func (s *Snapshot) uncast(address common.Address, authorize bool) bool {
 	return true
 }
 
-// apply creates a new authorization snapshot by applying the given headers to
+// applyHeaders creates a new authorization snapshot by applying the given headers to
 // the original one.
-func (s *Snapshot) apply(headers []*types.BlockHeader) (*Snapshot, error) {
+func (s *Snapshot) applyHeaders(headers []*types.BlockHeader) (*Snapshot, error) {
+	snap := s.copy()
+	// verTests := []common.Address{
+	// 	common.BytesToAddress(hexutil.MustHexToBytes("0xcee66ad4a1909f6b5170dec230c1a69bfc2b21d1")),
+	// 	common.BytesToAddress(hexutil.MustHexToBytes("0x73fc304ba542b1b999ca359044f71420017b49a1")),
+	// 	// common.HexToAddress("0xcee66ad4a1909f6b5170dec230c1a69bfc2b21d1"),
+	// 	// "0xcee66ad4a1909f6b5170dec230c1a69bfc2b21d1",
+	// }
+	// for _, verTest := range verTests {
+	// 	snap.VerSet.AddVerifier(verTest)
+	// 	fmt.Printf("\n added verTest %s in verset \n", verTest)
+	// }
+
+	// for i, ver := range snap.VerSet.List() {
+	// 	fmt.Printf("snapshot verset %dth verifier %s\n", i, ver)
+	// }
+	// fmt.Printf("apply header len = %d\n", len(headers))
+
 	// Allow passing in no headers for cleaner code
 	if len(headers) == 0 {
 		return s, nil
 	}
-	// Sanity check that the headers can be applied
+	// Sanity (consecutiveness) check that the headers can be applied
+	if headers[0].Height != s.Height+1 {
+		return nil, errVotingChainInvalid
+	}
+
+	// headers' consecutiveness (make sure before applyHeaders, the headers are good in order, otherwise, here will return error)
 	for i := 0; i < len(headers)-1; i++ {
 		if headers[i+1].Height != headers[i].Height+1 {
 			return nil, errVotingChainInvalid
 		}
 	}
-	if headers[0].Height != s.Height+1 {
-		return nil, errVotingChainInvalid
-	}
-	// Iterate through the headers and create a new snapshot
-	snap := s.copy()
 
+	// Iterate through the headers and create a new snapshot
+	// snap := s.copy()
 	for _, header := range headers {
 		// Remove any votes on checkpoint blocks
 		number := header.Height
@@ -173,27 +191,28 @@ func (s *Snapshot) apply(headers []*types.BlockHeader) (*Snapshot, error) {
 			snap.Votes = nil
 			snap.Tally = make(map[common.Address]Tally)
 		}
+
 		// Resolve the authorization key and check against verifiers
-		verifier, err := extractAccount(header)
+		signer, err := extractAccount(header)
 		if err != nil {
 			return nil, err
 		}
-		if _, v := snap.VerSet.GetByAddress(verifier); v == nil {
+		if _, v := snap.VerSet.GetVerByAddress(signer); v == nil {
 			return nil, errUnauthorized
 		}
 
-		// Header authorized, discard any previous votes from the verifier
+		// Header authorized, discard any previous votes from the signer
 		for i, vote := range snap.Votes {
-			if vote.Verifier == verifier && vote.Address == header.Creator {
+			if vote.Verifier == signer && vote.Address == header.Creator { // FIXME : should be vote.Address != header.Creator !!!
 				// Uncast the vote from the cached tally
 				snap.uncast(vote.Address, vote.Authorize)
 
 				// Uncast the vote from the chronological list
-				snap.Votes = append(snap.Votes[:i], snap.Votes[i+1:]...)
-				break // only one vote allowed
+				snap.Votes = append(snap.Votes[:i], snap.Votes[i+1:]...) // FIXME : need to check should be the other way around?
+				break                                                    // only one vote allowed
 			}
 		}
-		// Tally up the new vote from the verifier
+		// Tally up the new vote from the signer
 		var authorize bool
 		switch {
 		case bytes.Compare(header.Witness[:], nonceAuthVote) == 0:
@@ -205,20 +224,20 @@ func (s *Snapshot) apply(headers []*types.BlockHeader) (*Snapshot, error) {
 		}
 		if snap.cast(header.Creator, authorize) {
 			snap.Votes = append(snap.Votes, &Vote{
-				Verifier:  verifier,
+				Verifier:  signer,
 				Block:     number,
 				Address:   header.Creator,
 				Authorize: authorize,
 			})
 		}
 		// If the vote passed, update the list of verifiers
-		if tally := snap.Tally[header.Creator]; tally.Votes > snap.VerSet.Size()/2 {
+		if tally := snap.Tally[header.Creator]; tally.Votes > snap.VerSet.Size()/2 { // need more than half of the verifier to aggree the verifier
 			if tally.Authorize {
 				snap.VerSet.AddVerifier(header.Creator)
 			} else {
 				snap.VerSet.RemoveVerifier(header.Creator)
 
-				// Discard any previous votes the deauthorized verifier cast
+				// Discard any previous votes the deauthorized signer cast
 				for i := 0; i < len(snap.Votes); i++ {
 					if snap.Votes[i].Verifier == header.Creator {
 						// Uncast the vote from the cached tally
@@ -240,7 +259,21 @@ func (s *Snapshot) apply(headers []*types.BlockHeader) (*Snapshot, error) {
 			}
 			delete(snap.Tally, header.Creator)
 		}
+
+		// here we will check header secondwitness to add or remove verifiers from deposit txs and exit txs (if any)
+		// var swExtra *types.SecondWitnessExtra
+		// if err := rlp.DecodeBytes(header.SecondWitness, &swExtra); err != nil {
+		// 	fmt.Printf("failed to add verifiers from witness into snapshot, err", err)
+		// 	return nil, err
+		// }
+		// for _, depVer := range swExtra.DepositVers {
+		// 	snap.VerSet.AddVerifier(depVer)
+		// }
+		// for _, exitVer := range swExtra.ExitVers {
+		// 	snap.VerSet.RemoveVerifier(exitVer)
+		// }
 	}
+
 	snap.Height += uint64(len(headers))
 	snap.Hash = headers[len(headers)-1].Hash()
 

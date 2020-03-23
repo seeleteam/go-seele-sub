@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/seeleteam/go-seele/accounts/abi"
 	api2 "github.com/seeleteam/go-seele/api"
@@ -54,8 +55,15 @@ func (api *PublicSeeleAPI) EstimateGas(tx *types.Transaction) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-
+	if receipt.Failed {
+		return 0, errors.New(string(receipt.Result))
+	}
 	return receipt.UsedGas, nil
+}
+
+func (api *PublicSeeleAPI) GetHeight() (int64, error) {
+	block := api.s.chain.CurrentBlock()
+	return int64(block.Header.Height), nil
 }
 
 // GetInfo gets the account address that mining rewards will be send to.
@@ -68,7 +76,12 @@ func (api *PublicSeeleAPI) GetInfo() (api2.GetMinerInfo, error) {
 	} else {
 		status = "Stopped"
 	}
-
+	p1 := api.s.seeleProtocol.peerSet.getPeerCountByShard(1)
+	p2 := api.s.seeleProtocol.peerSet.getPeerCountByShard(2)
+	p3 := api.s.seeleProtocol.peerSet.getPeerCountByShard(3)
+	p4 := api.s.seeleProtocol.peerSet.getPeerCountByShard(4)
+	p0 := p1 + p2 + p3 + p4
+	peers := fmt.Sprintf("%d (%d %d %d %d)", p0, p1, p2, p3, p4)
 	return api2.GetMinerInfo{
 		Coinbase:           api.s.miner.GetCoinbase(),
 		CurrentBlockHeight: block.Header.Height,
@@ -76,6 +89,8 @@ func (api *PublicSeeleAPI) GetInfo() (api2.GetMinerInfo, error) {
 		Shard:              common.LocalShardNumber,
 		MinerStatus:        status,
 		Version:            common.SeeleNodeVersion,
+		BlockAge:           new(big.Int).Sub(big.NewInt(time.Now().Unix()), block.Header.CreateTimestamp),
+		PeerCnt:            peers,
 	}, nil
 }
 
@@ -177,7 +192,7 @@ func (api *PublicSeeleAPI) GetLogs(height int64, contractAddress common.Address,
 				return nil, errors.NewStackedError(err, "failed to decode event arguments")
 			}
 
-			logs = append(logs, api2.GetLogsResponse{ log, receipt.TxHash, uint(logIndex), data})
+			logs = append(logs, api2.GetLogsResponse{log, receipt.TxHash, uint(logIndex), data})
 		}
 	}
 
@@ -198,4 +213,15 @@ func getBlock(chain *core.Blockchain, height int64) (*types.Block, error) {
 	}
 
 	return block, nil
+}
+
+// GetShardNum gets the account shard number .
+// if the address is valid, return the corresponding shard number, otherwise return 0
+func (api *PublicSeeleAPI) GetShardNum(account common.Address) (uint, error) {
+	err := account.Validate()
+	if err == nil {
+		return account.Shard(), nil
+	} else {
+		return 0, err
+	}
 }

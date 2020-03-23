@@ -8,14 +8,17 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/seeleteam/go-seele/cmd/util"
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/core"
+	"github.com/seeleteam/go-seele/core/types"
 	"github.com/seeleteam/go-seele/crypto"
 	"github.com/seeleteam/go-seele/log/comm"
 	"github.com/seeleteam/go-seele/node"
@@ -34,6 +37,16 @@ func GetConfigFromFile(filepath string) (*util.Config, error) {
 	return &config, err
 }
 
+// Cast cast RPC address to 0.0.0.0
+// miner mehtods already have security-defence setting, 0.0.0.0 is ok (after mainnet matures and becomes stable, we can switch to 127.0.0.1)
+func Cast(conf *node.Config) {
+	endpoint := conf.BasicConfig.RPCAddr
+	pos := strings.LastIndex(endpoint, ":")
+	port := endpoint[pos+1:]
+	endpoint = "0.0.0.0:" + port
+	conf.BasicConfig.RPCAddr = endpoint
+}
+
 // LoadConfigFromFile gets node config from the given file
 func LoadConfigFromFile(configFile string, accounts string) (*node.Config, error) {
 	cmdConfig, err := GetConfigFromFile(configFile)
@@ -49,7 +62,12 @@ func LoadConfigFromFile(configFile string, accounts string) (*node.Config, error
 	if err != nil {
 		return nil, err
 	}
-
+	if cmdConfig.BasicConfig.MinerAlgorithm == common.BFTSubchainEngine {
+		cmdConfig.GenesisConfig.Consensus = types.BftConsensus
+		fmt.Printf("Creator %+v\n", cmdConfig.GenesisConfig.Masteraccount)
+		fmt.Printf("Supply %+v\n", cmdConfig.GenesisConfig.Supply)
+		fmt.Println("change consensus to ", cmdConfig.GenesisConfig.Consensus)
+	}
 	config := CopyConfig(cmdConfig)
 	convertIPCServerPath(cmdConfig, config)
 
@@ -76,6 +94,7 @@ func LoadConfigFromFile(configFile string, accounts string) (*node.Config, error
 	comm.LogConfiguration.DataDir = config.BasicConfig.DataDir
 	config.BasicConfig.DataDir = filepath.Join(common.GetDefaultDataFolder(), config.BasicConfig.DataDir)
 	config.BasicConfig.DataSetDir = filepath.Join(common.GetTempFolder(), config.BasicConfig.DataDir)
+	fmt.Printf("loadConfigFile %+v", config.SeeleConfig.GenesisConfig)
 	return config, nil
 }
 

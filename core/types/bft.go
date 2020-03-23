@@ -10,15 +10,15 @@ import (
 )
 
 var (
-	// BftDigest represents a hash of "Bft practical byzantine fault tolerance"
+	// BftWitness represents a hash of "seeles practical byzantine fault tolerance"
 	// to identify whether the block is from Bft consensus engine
-	BftWitness = common.MustHexToHash("0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365").Bytes()
+	BftWitness = common.MustHexToHash("0x7365656c65732062797a616e74696e65206661756c7420746f6c6572616e6365").Bytes()
 
 	BftExtraVanity = 32 // Fixed number of extra-data bytes reserved for verifier vanity
 	BftExtraSeal   = 65 // Fixed number of extra-data bytes reserved for verifier seal
 
 	// ErrInvalidBftHeaderExtra is returned if the length of extra-data is less than 32 bytes
-	ErrInvalidBftHeaderExtra = errors.New("invalid istanbul header extra-data")
+	ErrInvalidBftHeaderExtra = errors.New("invalid BFT header extra-data")
 )
 
 // BftExtra will be used as ExtraData in block for bft consensus algorithm

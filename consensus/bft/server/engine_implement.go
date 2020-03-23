@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	checkpointInterval = 1024 // Height of blocks after which to save the vote snapshot to the database
-	inmemorySnapshots  = 128  // Height of recent vote snapshots to keep in memory
-	inmemoryPeers      = 40   // peers of recent kept in memory
-	inmemoryMessages   = 1024 // messages of recent kept in memory
+	checkInterval     = common.CheckInterval // Height of blocks after which to save the vote snapshot to the database
+	inmemorySnapshots = 128                  // Height of recent vote snapshots to keep in memory
+	inmemoryPeers     = 40                   // peers of recent kept in memory
+	inmemoryMessages  = 1024                 // messages of recent kept in memory
 )
 
 var (
@@ -72,8 +72,8 @@ var (
 	nonceAuthVote = hexutil.MustHexToBytes("0xffffffffffffffff") // Magic nonce number to vote on adding a new verifier
 	nonceDropVote = hexutil.MustHexToBytes("0x0000000000000000") // Magic nonce number to vote on removing a verifier.
 
-	inmemoryAddresses  = 20 // Height of recent addresses from extractAccount
-	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
+	inmemoryAddresses = 20 // Height of recent addresses from extractAccount
+	cachedAddrs, _    = lru.NewARC(inmemoryAddresses)
 )
 
 // SealResult generates a new block for the given input block with the local miner's Seal.
@@ -83,30 +83,54 @@ func (s *server) SealResult(chain consensus.ChainReader, block *types.Block, sto
 	number := header.Height
 
 	// Bail out if we're unauthorized to sign a block
+	// var headers []*types.BlockHeader
+	// headers = append(headers, header)
+
+	// step1. take a snapshot of n-1th block
 	snap, err := s.snapshot(chain, number-1, header.PreviousBlockHash, nil)
-	fmt.Printf("[4-2-1]newBlock SealResult snapshot with err %+v\n", err)
+	// snap, err := s.snapshot(chain, number-1, header.PreviousBlockHash, headers)
 	if err != nil {
 		return nil, err
 	}
+	s.log.Info("snapshot pervious block height %d, hash %s", number-1, header.PreviousBlockHash)
+
 	// check whether self is authoried or not
-	_, v := snap.VerSet.GetByAddress(s.address)
+	// Test Result return with VerSet:0xc000356640
+	// s.log.Info("check s.address %+v in verset or not?", s.address)
+	// s.log.Info("snap.VerSet %d verifiers, with snap.Verset %+v", snap.VerSet.Size(), snap.VerSet)
+
+	// after mining height = 1 block, the peer set was empty
+	// size := snap.VerSet.Size()
+	// if size == 0 {
+	// 	s.log.Panic("verifier set is empty!")
+	// }
+	// for i := uint64(0); i < uint64(size); i++ {
+	// 	ver := snap.VerSet.GetVerByIndex(i)
+	// 	s.log.Error("\n\n\n\ncheck snap verset first: %dth verifier %s\n\n\n", i, ver)
+	// }
+
+	// verify current server address is in the verset or not
+	_, v := snap.VerSet.GetVerByAddress(s.address)
+
 	if v == nil {
+		s.log.Error("server address is NOT in verifers set")
 		return nil, errUnauthorized
 	}
-	fmt.Printf("[4-2-2]newBlock SealResult GetByAddress %+v\n", v)
+	s.log.Info("server address %s is in verifiers set", s.address)
 
 	parent := chain.GetHeaderByHash(header.PreviousBlockHash)
 	if parent == nil {
 		return nil, consensus.ErrBlockInvalidParentHash
 	}
-	fmt.Printf("[4-2-3]newBlock SealResult GetHeaderByHash %+v\n", parent)
+	// s.log.Info("[4-2-3]newBlock SealResult parent %+v", parent)
 
-	fmt.Printf("[4-2-4]newBlock SealResult updateBlock before %+v\n", block)
+	// s.log.Info("[4-2-4]newBlock SealResult updateBlock before %+v", block)
+
 	//update block with signature and timestamp
 	block, err = s.updateBlock(parent, block) //
-	fmt.Printf("[4-2-4]newBlock SealResult updateBlock after %+v\n", block)
 
 	if err != nil {
+		s.log.Error("update block failed with err %+v", err)
 		return nil, err
 	}
 
@@ -121,6 +145,7 @@ func (s *server) SealResult(chain consensus.ChainReader, block *types.Block, sto
 	// get the proposed block hash and clear it if the seal() is completed.
 	s.sealMu.Lock()
 	s.proposedBlockHash = block.Hash()
+	s.log.Info("assign the block hash %s to proposedBlockHash", block.Hash())
 	clear := func() {
 		s.proposedBlockHash = common.Hash{}
 		s.sealMu.Unlock()
@@ -128,7 +153,6 @@ func (s *server) SealResult(chain consensus.ChainReader, block *types.Block, sto
 	defer clear()
 
 	/*
-
 		!!! there is no commit block into commitCh, so result <- server committed channel there is no result
 	*/
 
@@ -136,33 +160,33 @@ func (s *server) SealResult(chain consensus.ChainReader, block *types.Block, sto
 	go s.EventMux().Post(bft.RequestEvent{
 		Proposal: block,
 	})
-	fmt.Println("Post in SealResult")
-	// fmt.Printf("s.commitCh %+v\n", s.commitCh)
-	// result := <-s.commitCh
-	// fmt.Printf("result from commit channel result: %+v", result)
-	// return result, nil
 
 out:
 	for {
 		select {
 		case result := <-s.commitCh:
-			fmt.Printf("commit channel to result\n")
-			for {
-				if result == nil {
-					break
-				}
-				// if the block hash and the hash from channel are the same,
-				// return the result. Otherwise, keep waiting the next hash.
-				// MORE TEST Here (ensure logic is right here)
-				if block.Hash() == result.Hash() {
-					return result, nil
-				}
+			s.log.Info("commit channel to result %+v", result)
+			// for {
+			if result == nil {
+				s.log.Warn("commitCh is empty")
+				break
+				// time.Sleep(1 * time.Second)
+				// goto out
 			}
+			// if the block hash and the hash from channel are the same,
+			// return the result. Otherwise, keep waiting the next hash.
+			// MORE TEST Here (ensure logic is right here)
+			if block.Hash() == result.Hash() {
+				s.log.Info("get result back %s height %d", block.Hash(), block.Height())
+				return result, nil
+			}
+			// }
 		case <-stop:
+			s.log.Info("commit chanel get stop signal")
 			break out
-		default:
-			fmt.Printf("default\n")
-			return nil, errors.New("select enter into default, namely no result and no stop signal")
+			// default:
+			// 	s.log.Error("shoule never reach here")
+			// 	return nil, errors.New("select enter into default, namely no result and no stop signal")
 		}
 
 	}
@@ -182,7 +206,7 @@ func (s *server) verifyHeader(chain consensus.ChainReader, header *types.BlockHe
 // verifyHeaderCommon verify some fields of Header
 func (s *server) verifyHeaderCommon(header *types.BlockHeader, parents []*types.BlockHeader) error {
 	if header.Consensus != types.BftConsensus {
-		fmt.Printf("header.Consensus (%d) != types.BftConsensus (%d)\n", header.Consensus, types.BftConsensus)
+		fmt.Printf("verifyHeaderCommon[185] header.Consensus (%d) != types.BftConsensus (%d)\n", header.Consensus, types.BftConsensus)
 		return errBFTConsensus
 	}
 	if header.CreateTimestamp.Cmp(big.NewInt(now().Unix())) > 0 {
@@ -195,6 +219,12 @@ func (s *server) verifyHeaderCommon(header *types.BlockHeader, parents []*types.
 		return errNonceInvalid
 	}
 	if header.Difficulty == nil || header.Difficulty.Cmp(defaultDifficulty) != 0 {
+		if header.Difficulty == nil {
+			s.log.Error("header.Difficulty is empty")
+		}
+		if header.Difficulty.Cmp(defaultDifficulty) != 0 {
+			s.log.Error("header.Difficulty %d is not deafultDifficulty %d", header.Difficulty, defaultDifficulty)
+		}
 		return errDifficultyInvalid
 	}
 	return nil
@@ -218,6 +248,7 @@ func (s *server) verifyBFTCore(chain consensus.ChainReader, header *types.BlockH
 		return errTimestampInvalid
 	}
 	// verify extraData. Verifiers in snapshot and extraData should be the same
+	// s.log.Error("verfify BFTCore, snapshot")
 	snap, err := s.snapshot(chain, number-1, header.PreviousBlockHash, parents) //TODO implement snapshot() in snapshot.go
 	if err != nil {
 		return err
@@ -264,19 +295,24 @@ func (s *server) verifyCommittedSeals(chain consensus.ChainReader, header *types
 			s.log.Error("not a valid address")
 			return errInvalidSignature
 		}
-
-		// FIXME : 0x3e2a551f3e9527d58e4cc987dbde688272a48b11 from verifiers set [0x6d86a0e07f632560297f104bece421336de6e8a1]
-		// Problem: the addr is not among verifiers, RemoveVerifier return error!
-		if verifiers.RemoveVerifier(addr) { //TODO
+		if verifiers.RemoveVerifier(addr) {
 			validSealCount++
 		} else {
 			return errCommittedSealsInvalid
 		}
 	}
+	s.log.Debug("got %d valid seals", validSealCount)
+	s.log.Debug("%d verifiers", snap.VerSet.Size())
+	// for i, ver := range snap.VerSet.List() {
+	// 	s.log.Error("%d, verifier %+v", i, ver)
+	// }
+	s.log.Debug("%d verifiers", snap.VerSet.Size())
 	// 2. The length of validSeal should be larger than number of faulty node + 1
 	// if validSealCount <= 2*snap.VerSet.F() { // FIXME <= or <??
+	s.log.Info("Tally: validSealCount: %d require: %d", validSealCount, 2*snap.VerSet.F())
+
 	if validSealCount < 2*snap.VerSet.F() {
-		fmt.Println("validSealCount ", validSealCount, "require ", 2*snap.VerSet.F())
+		s.log.Debug("validSealCount ", validSealCount, "require ", 2*snap.VerSet.F())
 		return errCommittedSealsInvalid
 	}
 	return nil
@@ -300,7 +336,7 @@ func (s *server) verifySigner(chain consensus.ChainReader, header *types.BlockHe
 	}
 
 	// Signer should be in the validator set of previous block's extraData.
-	if _, v := snap.VerSet.GetByAddress(signer); v == nil {
+	if _, v := snap.VerSet.GetVerByAddress(signer); v == nil {
 		return errUnauthorized
 	}
 	return nil
@@ -325,9 +361,11 @@ func (s *server) VerifySeal(chain consensus.ChainReader, header *types.BlockHead
 func (s *server) Creator(header *types.BlockHeader) (common.Address, error) {
 	return extractAccount(header)
 }
+
+// extractAccount extracts the account address from a signed header.
 func extractAccount(header *types.BlockHeader) (common.Address, error) {
 	hash := header.Hash()
-	if addr, ok := recentAddresses.Get(hash); ok {
+	if addr, ok := cachedAddrs.Get(hash); ok {
 		return addr.(common.Address), nil
 	}
 	bftExtra, err := types.ExtractBftExtra(header) //
@@ -338,7 +376,7 @@ func extractAccount(header *types.BlockHeader) (common.Address, error) {
 	if err != nil {
 		return addr, err
 	}
-	recentAddresses.Add(hash, addr)
+	cachedAddrs.Add(hash, addr)
 	return addr, nil
 }
 
@@ -358,35 +396,45 @@ func sigHash(header *types.BlockHeader) (hash common.Hash) {
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
+// snapshot used to verfify the authentication.
 func (ser *server) snapshot(chain consensus.ChainReader, height uint64, hash common.Hash, parents []*types.BlockHeader) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk for checkpoints
+
+	if len(parents) > 0 {
+		ser.log.Info("get multply parentHeaders")
+		for i, parent := range parents {
+			ser.log.Info("%d/%d, %s, height %d\n", i/len(parents), parent.Hash, parent.Height)
+		}
+	}
+
 	var (
 		headers []*types.BlockHeader
 		snap    *Snapshot
 	)
-	for snap == nil {
-		// If an in-memory snapshot was found, use that
+	for snap == nil { // there are 3 scenarios
+		// scenario: If an in-memory snapshot was found, use that
 		if s, ok := ser.recents.Get(hash); ok {
 			snap = s.(*Snapshot)
+			ser.log.Debug("at height: %d, snap from the RAM %+v, verset %+v", height, snap, snap.VerSet.List())
+			// ser.log.Info("at height: %d, verset %+v", height, snap.VerSet.GetVerByIndex(0))
 			break
 		}
-		// If an on-disk checkpoint snapshot can be found, use that
-		if height%checkpointInterval == 0 {
-			if s, err := loadSnapshot(ser.config.Epoch, ser.db, hash); err == nil {
-				ser.log.Info("Loaded voting snapshot form disk. height: %d. hash %s", height, hash)
-				snap = s
-				break
+		// FIXME If an on-disk checkpoint snapshot can be found, use that
+		/*
+			if height%checkInterval == 0 { // FIXME double check the Epoch & checkInterval
+				if s, err := retrieveSnapshot(ser.config.Epoch, ser.db, hash); err == nil {
+					ser.log.Info("Loaded voting snapshot form disk. height: %d. hash %s", height, hash)
+					snap = s
+					break
+				}
 			}
-		}
-		// If we're at block zero, make a snapshot
-		// BUGS when run, FIXME
+		*/
+		// scenario 2: If we're at block zero, make a snapshot
 		if height == 0 {
-			// fmt.Println("we start from Height = 0")
 			genesis := chain.GetHeaderByHeight(0)
 			// we do to initiate the genesis block right, otherwise verifyHeader can not pass.
-			// format of extra data is invalid !!!
 			if err := ser.VerifyHeader(chain, genesis); err != nil {
-				fmt.Println("failed to verify header when [snapshot]")
+				ser.log.Info("failed to verify header when [snapshot] with err", err)
 				return nil, err
 			}
 			bftExtra, err := types.ExtractBftExtra(genesis)
@@ -394,7 +442,77 @@ func (ser *server) snapshot(chain consensus.ChainReader, height uint64, hash com
 				return nil, err
 			}
 			snap = newSnapshot(ser.config.Epoch, 0, genesis.Hash(), verifier.NewVerifierSet(bftExtra.Verifiers, ser.config.ProposerPolicy))
-			if err := snap.store(ser.db); err != nil {
+			// FIXME need to save not so frequently and save to ser.recents
+			if err := snap.save(ser.db); err != nil {
+				return nil, err
+			}
+			ser.log.Debug("Stored genesis voting snapshot to disk")
+			break
+		} else { // scenario 3 : use the extra data with the verifiers info
+			h := chain.GetHeaderByHeight(height)
+			// we do to initiate the genesis block right, otherwise verifyHeader can not pass.
+
+			/* this code will trigger the recursive verification
+
+			// if err := ser.VerifyHeader(chain, h); err != nil {
+			// 	fmt.Println("failed to verify header when [snapshot] with err", err)
+			// 	return nil, err
+			// }
+
+			*/
+
+			bftExtra, err := types.ExtractBftExtra(h)
+			if err != nil {
+				ser.log.Error("failed to extra secondwitness extra, err", err)
+
+				return nil, err
+			}
+			snap = newSnapshot(ser.config.Epoch, height, h.Hash(), verifier.NewVerifierSet(bftExtra.Verifiers, ser.config.ProposerPolicy))
+			// snap = newSnapshot(ser.config.Epoch, height, h.Hash(), verifier.NewVerifierSet(curvers, ser.config.ProposerPolicy))
+			// FIXME need to save not so frequently
+			ser.log.Info("get snap from last height")
+			swExtra, err := types.ExtractSecondWitnessInfo(h)
+			if err != nil {
+				ser.log.Error("failed to extra secondwitness extra, err", err)
+				return nil, err
+			}
+			ser.log.Debug("swExtra %+v", swExtra)
+			if len(swExtra.ChallengedTxs) != 0 {
+				ser.log.Warn("successfully challenge relay info on mainchain")
+				// this should be the  consistent with common.RelayRange
+				// checkpoint should be -1, the last is challenged successfully
+				checkpoint := uint64(height / checkInterval)
+				if checkpoint > 0 {
+					checkpoint--
+				}
+				reverthash := chain.GetHeaderByHeight(checkpoint).Hash()
+				if s, err := retrieveSnapshot(ser.config.Epoch, ser.db, reverthash); err == nil {
+					ser.log.Info("Loaded voting snapshot form disk. height: %d. hash %s", height, hash)
+					snap = s
+					break
+				}
+
+			}
+			for i, depver := range swExtra.DepositVers {
+				ser.log.Warn("%dth new verifier %+v from secondwitness", i, depver)
+				added := snap.VerSet.AddVerifier(depver)
+				if !added {
+					ser.log.Warn("verifier address already exists in verifier list")
+				}
+				ser.log.Info("after added one new verifier, snap verset %+v", snap.verifiers())
+			}
+			for k, exver := range swExtra.ExitVers {
+				ser.log.Warn("%dth verifier %+v removed from secondwitness", k, exver)
+				deleted := snap.VerSet.RemoveVerifier(exver)
+				if !deleted {
+					ser.log.Error("exit verifier NOT found in verifier list!")
+				}
+				ser.log.Info("after remove one verifier, snap verset %+v", snap.verifiers())
+			}
+
+			ser.log.Debug("snap verset %+v", snap.verifiers())
+
+			if err := snap.save(ser.db); err != nil {
 				return nil, err
 			}
 			ser.log.Info("Stored genesis voting snapshot to disk")
@@ -423,20 +541,21 @@ func (ser *server) snapshot(chain consensus.ChainReader, height uint64, hash com
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(headers)
+	ser.log.Debug("before applying len=%d headers, snapshot %+v", len(headers), snap)
+	snap, err := snap.applyHeaders(headers)
 	if err != nil {
 		return nil, err
 	}
 	ser.recents.Add(snap.Hash, snap)
 
 	// If we've generated a new checkpoint snapshot, save to disk
-	if snap.Height%checkpointInterval == 0 && len(headers) > 0 {
-		if err = snap.store(ser.db); err != nil {
+	if snap.Height%checkInterval == 0 && len(headers) > 0 {
+		if err = snap.save(ser.db); err != nil {
 			return nil, err
 		}
 		ser.log.Debug("Stored voting snapshot to disk. height %d. hash %s", snap.Height, snap.Hash)
 	}
-	fmt.Printf("take a snapshot %+v with err %+v\n", snap, err)
+	ser.log.Debug("take a snapshot %+v with err %+v", snap, err)
 	return snap, err
 }
 
@@ -509,24 +628,24 @@ func writeCommittedSeals(h *types.BlockHeader, committedSeals [][]byte) error {
 	}
 
 	for _, seal := range committedSeals {
-		if len(seal) != types.BftExtraSeal { // TODO change types
+		if len(seal) != types.BftExtraSeal {
 			return errCommittedSealsInvalid
 		}
 	}
 
-	bftExtra, err := types.ExtractBftExtra(h) // TODO change types
+	bftExtra, err := types.ExtractBftExtra(h)
 	if err != nil {
 		return err
 	}
 
 	bftExtra.CommittedSeal = make([][]byte, len(committedSeals))
-	copy(bftExtra.CommittedSeal, committedSeals) // TODO change types
+	copy(bftExtra.CommittedSeal, committedSeals)
 
 	payload, err := rlp.EncodeToBytes(&bftExtra)
 	if err != nil {
 		return err
 	}
 
-	h.ExtraData = append(h.ExtraData[:types.BftExtraVanity], payload...) // TODO change types
+	h.ExtraData = append(h.ExtraData[:types.BftExtraVanity], payload...)
 	return nil
 }

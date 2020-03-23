@@ -51,8 +51,8 @@ func NewDebtPool(chain blockchain, verifier types.DebtVerifier) *DebtPool {
 
 		event.DebtsInsertedEventManager.Fire(obj.(*types.Debt))
 	}
-
-	pool := NewPool(DebtPoolCapacity, chain, getObjectFromBlock, canRemove, log, objectValidation, afterAdd)
+	cachedTxs := NewCachedTxs(0)
+	pool := NewPool(DebtPoolCapacity, chain, getObjectFromBlock, canRemove, log, objectValidation, afterAdd, cachedTxs)
 
 	debtPool := &DebtPool{
 		Pool:             pool,
@@ -91,7 +91,7 @@ func (dp *DebtPool) DoMulCheckingDebt() error {
 	tmp := dp.toConfirmedDebts.getList()
 	len := len(tmp)
 	threads := runtime.NumCPU() / 2
-	dp.log.Info("use %d threads to validate debts\n", threads)
+	dp.log.Info("use %d threads to validate debts", threads)
 	// single thread for few CPU kernel or few txs to validate.
 	if threads <= 1 || len < threads {
 		for i := 0; i < len; i++ {

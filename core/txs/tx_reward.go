@@ -86,9 +86,15 @@ func ValidateRewardTx(tx *types.Transaction, header *types.BlockHeader) error {
 		return err
 	}
 
-	reward := consensus.GetReward(header.Height)
-	if reward == nil || reward.Cmp(amount) != 0 {
-		return fmt.Errorf("invalid reward Amount, block height %d, want %s, got %s", header.Height, reward, amount)
+	if header.Consensus != types.BftConsensus {
+		reward := consensus.GetReward(header.Height)
+		if reward == nil || reward.Cmp(amount) != 0 {
+			return fmt.Errorf("invalid reward Amount, block height %d, want %s, got %s", header.Height, reward, amount)
+		}
+	} else {
+		if amount.Cmp(big.NewInt(int64(0))) != 0 {
+			return fmt.Errorf("invalid reward Amount, block height %d, want %d, got %s", header.Height, 0, amount)
+		}
 	}
 
 	// validate timestamp

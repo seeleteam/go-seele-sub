@@ -16,12 +16,18 @@ const (
 	// BlockChainDir blockchain data directory based on config.DataRoot
 	BlockChainDir = "/db/blockchain"
 
-	forceSyncInterval = time.Second * 5 // interval time of synchronising with remote peer
+	forceSyncInterval = time.Second * 7 // interval time of synchronising with remote peer
 
-	txsyncPackSize =  1024
+	txsyncPackSize = 1024
 
 	// AccountStateDir account state info directory based on config.DataRoot
 	AccountStateDir = "/db/accountState"
+
+	// AccountIndexDir
+	AccountIndexDir = "/db/accountIndex"
+
+	// IndexAccountDir
+	IndexAccountDir = "/db/indexAccount"
 
 	// DebtManagerDir to-be-sent debt directory based on config.DataRoot
 	DebtManagerDir = "/db/debtManager"

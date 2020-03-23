@@ -25,11 +25,26 @@ func GetAccountNonce(client *rpc.Client, account common.Address, hexHash string,
 	return nonce, err
 }
 
+// GetAccountNonce get account nonce by account
+func GetAccountTxCount(client *rpc.Client, account common.Address, hexHash string, height int64) (uint64, error) {
+	var count uint64
+	err := client.Call(&count, "seele_getAccountTxCount", account, hexHash, height)
+
+	return count, err
+}
+
 func GetInfo(client *rpc.Client) (api.GetMinerInfo, error) {
 	var info api.GetMinerInfo
 	err := client.Call(&info, "seele_getInfo")
 
 	return info, err
+}
+
+func Height(client *rpc.Client) (int64, error) {
+	var height int64
+	err := client.Call(&height, "seele_getHeight")
+
+	return height, err
 }
 
 // GenerateTx generate a transaction based on the address type of to
@@ -87,4 +102,29 @@ func GetNetworkID(client *rpc.Client) (string, error) {
 	err := client.Call(&networkID, "network_getNetworkID")
 
 	return networkID, err
+}
+
+// GenerateTx generate a transaction based on the address type of to
+func GenerateSubTx(from *ecdsa.PrivateKey, to common.Address, amount *big.Int, price *big.Int, gasLimit uint64, nonce uint64, payload []byte, largestPackHeight int64) (*types.Transaction, error) {
+	fromAddr := crypto.GetAddress(&from.PublicKey)
+
+	var tx *types.Transaction
+	var err error
+	if to.IsEmpty() {
+		return nil, fmt.Errorf("empty To address: %d", 0)
+	} else {
+		switch to.Type() {
+		case common.AddressTypeExternal:
+			// always ignore the user input gas limit for transfer amount tx.
+			tx, err = types.NewSubTransaction(*fromAddr, to, amount, price, nonce, from, uint64(largestPackHeight))
+		default:
+			return nil, fmt.Errorf("unsupported address type: %d", to.Type())
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("create transaction err %s", err)
+	}
+
+	return tx, nil
 }

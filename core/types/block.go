@@ -36,9 +36,9 @@ var (
 type ConsensusType uint
 
 const (
-	PowConsensus ConsensusType = iota
-	IstanbulConsensus
-	BftConsensus
+	PowConsensus      ConsensusType = iota
+	IstanbulConsensus               = 1 << iota
+	BftConsensus                    = 1 << iota
 )
 
 // BlockHeader represents the header of a block in the blockchain.
@@ -88,6 +88,11 @@ func (header *BlockHeader) Hash() common.Hash {
 			return crypto.MustHash(istanbulHeader)
 		}
 	}
+	if header.Consensus == BftConsensus {
+		if bftHeader := BftFilteredHeader(header, true); bftHeader != nil {
+			return crypto.MustHash(bftHeader)
+		}
+	}
 
 	return crypto.MustHash(header)
 }
@@ -122,6 +127,14 @@ func NewBlock(header *BlockHeader, txs []*Transaction, receipts []*Receipt, debt
 		copy(block.Debts, debts)
 	}
 
+	// var vers []common.Address
+	// for _, tx := range txs {
+	// 	if IsVerifierTx(tx) {
+	// 		vers = append(vers, tx.FromAccount())
+	// 	}
+	// }
+	// block.Header.SecondWitness = VerifiersFromTxBytes(vers)
+
 	block.Header.ReceiptHash = ReceiptMerkleRootHash(receipts)
 	block.Header.DebtHash = DebtMerkleRootHash(debts)
 	block.Header.TxDebtHash = DebtMerkleRootHash(NewDebts(txs))
@@ -146,7 +159,7 @@ func (block *Block) WithSeal(header *BlockHeader) *Block {
 		HeaderHash:   header.Hash(),
 		Header:       header.Clone(),
 		Transactions: block.Transactions,
-		Debts:        block.Debts,
+		// Debts:        block.Debts,
 	}
 }
 

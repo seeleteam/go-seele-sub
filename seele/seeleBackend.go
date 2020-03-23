@@ -7,9 +7,10 @@ import (
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/core/store"
 	"github.com/seeleteam/go-seele/core/types"
+	"github.com/seeleteam/go-seele/database"
 	"github.com/seeleteam/go-seele/log"
 	"github.com/seeleteam/go-seele/p2p"
-	"github.com/seeleteam/go-seele/seele/download"
+	downloader "github.com/seeleteam/go-seele/seele/download"
 )
 
 type SeeleBackend struct {
@@ -35,6 +36,10 @@ func (sd *SeeleBackend) GetP2pServer() *p2p.Server { return sd.s.p2pServer }
 
 // ChainBackend block chain db
 func (sd *SeeleBackend) ChainBackend() api.Chain { return sd.s.chain }
+
+func (sd *SeeleBackend) GetAccountIndexDB() database.Database { return sd.s.accountIndexDB }
+
+func (sd *SeeleBackend) GetIndexAccountDB() database.Database { return sd.s.indexAccountDB }
 
 // Log return log pointer
 func (sd *SeeleBackend) Log() *log.SeeleLog { return sd.s.log }

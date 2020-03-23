@@ -93,11 +93,15 @@ type Downloader struct {
 	syncStatus int
 	tm         *taskMgr
 
-	seele     SeeleBackend
-	chain     *core.Blockchain
-	sessionWG sync.WaitGroup
-	log       *log.SeeleLog
-	lock      sync.RWMutex
+	seele          SeeleBackend
+	chain          *core.Blockchain
+	sessionWG      sync.WaitGroup
+	log            *log.SeeleLog
+	lock           sync.RWMutex
+	lastEpoch      uint64
+	lastTop        uint64
+	hashAfterEpoch common.Hash
+	isRevert       int32
 }
 
 // BlockHeadersMsgBody represents a message struct for BlockHeadersMsg
@@ -127,10 +131,42 @@ func NewDownloader(chain *core.Blockchain, seele SeeleBackend) *Downloader {
 		chain:      chain,
 		syncStatus: statusNone,
 	}
-
+	// event.ChallengedTxEventManager.AddAsyncListener(d.setSynchroniseAncestor)
 	d.log = log.GetLogger("download")
 	rand2.Seed(time.Now().UnixNano())
 	return d
+}
+
+func (d *Downloader) setSynchroniseAncestor(e event.Event) {
+
+	d.lock.Lock()
+	defer d.lock.Unlock()
+	// if atomic.LoadInt32(&)
+	curHeader := d.chain.CurrentHeader()
+	curHeight := curHeader.Height
+	fmt.Println("current blockchain height", curHeight)
+	lastEpochPoint := curHeight/common.RelayRange - 1
+	if lastEpochPoint <= 0 {
+		lastEpochPoint = 0
+	}
+	d.lastEpoch = lastEpochPoint * common.RelayRange
+	d.lastTop = curHeight
+
+	bcStore := d.chain.GetStore()
+
+	blockAfterEpoch, err := bcStore.GetBlockByHeight(lastEpochPoint + 1)
+	if err != nil {
+		d.log.Error("can not find block after reverting epoch")
+	}
+
+	d.hashAfterEpoch = blockAfterEpoch.Hash()
+	// _, _, _, err = d.reverseBCstore(lastEpochPoint)
+	// if err != nil {
+	// 	d.log.Error("failed to revert blockchain to epoch point")
+	// }
+	event.ChallengedTxAfterEventManager.Fire(event.ChallengedTxAfterEvent)
+	// atomic.StoreInt32(&d.isRevert, 1)
+	// panic("Downloader get the challengedTx event! well done")
 }
 
 func (d *Downloader) getReadableStatus() string {
@@ -167,7 +203,7 @@ func (d *Downloader) getSyncInfo(info *SyncInfo) {
 }
 
 // Synchronise try to sync with remote peer.
-func (d *Downloader) Synchronise(id string, head common.Hash, td *big.Int, localTD *big.Int) error {
+func (d *Downloader) Synchronise(id string, head common.Hash) error {
 	// Make sure only one routine can pass at once
 	d.lock.Lock()
 
@@ -188,7 +224,7 @@ func (d *Downloader) Synchronise(id string, head common.Hash, td *big.Int, local
 	}
 	d.lock.Unlock()
 
-	err := d.doSynchronise(p, head, td, localTD)
+	err := d.doSynchronise(p, head)
 
 	d.lock.Lock()
 	d.syncStatus = statusNone
@@ -199,7 +235,8 @@ func (d *Downloader) Synchronise(id string, head common.Hash, td *big.Int, local
 	return err
 }
 
-func (d *Downloader) doSynchronise(conn *peerConn, head common.Hash, td *big.Int, localTD *big.Int) (err error) {
+//td *big.Int, localTD *big.Int
+func (d *Downloader) doSynchronise(conn *peerConn, head common.Hash) (err error) {
 	d.log.Debug("Downloader.doSynchronise start, masterID: %s", d.masterPeer)
 	event.BlockDownloaderEventManager.Fire(event.DownloaderStartEvent)
 	defer func() {
@@ -218,12 +255,38 @@ func (d *Downloader) doSynchronise(conn *peerConn, head common.Hash, td *big.Int
 		return err
 	}
 	height := latest.Height
+	// TO TEST this code whether it effect the mainchain
 
+	// so far we won't disable the challenge module
+	// //test code
+	// isSameTest, err := d.compareHashEpochAfter(d.hashAfterEpoch, conn, d.lastTop)
+	// if err != nil {
+	// 	return err
+	// }
+	// d.log.Error("compare the reverted Hash with peer, result %+v", isSameTest)
+
+	// // test code
+
+	// if d.lastEpoch != 0 && d.lastEpoch < height {
+	// 	return errors.New("abort synchronise since peer is in bad history!")
+	// }
+
+	// // test code end
+	// if d.lastEpoch != 0 && d.hashAfterEpoch != common.EmptyHash && d.lastTop != 0 { // add this check to prevent effect to mainchain
+	// 	isSame, err := d.compareHashEpochAfter(d.hashAfterEpoch, conn, d.lastTop)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	if isSame {
+	// 		return errors.New("abort synchronise since peer is in bad history!")
+	// 	}
+	// }
 	ancestor, err := d.findCommonAncestorHeight(conn, height)
 	if err != nil {
 		conn.peer.DisconnectPeer("peerDownload anormaly")
 		return err
 	}
+
 	d.log.Debug("find ancestor at  %d reverseBCstore", ancestor)
 	localHeight, localTD, localBlocks, err := d.reverseBCstore(ancestor)
 	d.log.Debug("reverse to ancestor %d localHeight %d backup %d localBlocks", ancestor, localHeight, len(localBlocks))
@@ -238,19 +301,15 @@ func (d *Downloader) doSynchronise(conn *peerConn, head common.Hash, td *big.Int
 	bMasterStarted := false
 	d.lock.Lock()
 	d.syncStatus = statusFetching
-	for _, pConn := range d.peers {
-		_, peerTD := pConn.peer.Head()
-		if localTD.Cmp(peerTD) >= 0 {
-			continue
-		}
-		d.sessionWG.Add(1)
-		if pConn.peerID == d.masterPeer {
-			d.log.Debug("Downloader.doSynchronise set bMasterStarted = true masterid=%s", d.masterPeer)
-			bMasterStarted = true
-		}
 
-		go d.peerDownload(pConn, tm)
+	d.sessionWG.Add(1)
+	if conn.peerID == d.masterPeer {
+		d.log.Debug("Downloader.doSynchronise set bMasterStarted = true masterid=%s", d.masterPeer)
+		bMasterStarted = true
 	}
+
+	go d.peerDownload(conn, tm)
+	//}
 	d.lock.Unlock()
 
 	if !bMasterStarted {
@@ -289,6 +348,23 @@ func (d *Downloader) fetchHeight(conn *peerConn) (*types.BlockHeader, error) {
 	}
 
 	return verifyBlockHeadersMsg(msg, head)
+}
+
+func (d *Downloader) compareHashEpochAfter(hash common.Hash, conn *peerConn, localTop uint64) (bool, error) {
+	d.log.Debug("getPeerBlockHeaders localTop %d, fetchCount %d", localTop, 1)
+	headers, err := d.getPeerBlockHeaders(conn, localTop, 1)
+	if err != nil {
+		return false, err
+	}
+	d.log.Debug("Downloader saved hash %+v", d.hashAfterEpoch)
+	for i, header := range headers {
+		d.log.Error("%dth header from peer %+v", i, header.Hash())
+	}
+	if d.hashAfterEpoch.Equal(headers[0].Hash()) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func verifyBlockHeadersMsg(msg interface{}, head common.Hash) (*types.BlockHeader, error) {
@@ -419,10 +495,10 @@ func (d *Downloader) RegisterPeer(peerID string, peer Peer) {
 	newConn := newPeerConn(peer, peerID, d.log)
 	d.peers[peerID] = newConn
 
-	if d.syncStatus == statusFetching {
-		d.sessionWG.Add(1)
-		go d.peerDownload(newConn, d.tm)
-	}
+	//if d.syncStatus == statusFetching {
+	//	d.sessionWG.Add(1)
+	//	go d.peerDownload(newConn, d.tm)
+	//}
 }
 
 // UnRegisterPeer remove peer from download routine
@@ -576,7 +652,8 @@ func (d *Downloader) processBlocks(headInfos []*downloadInfo, ancestor uint64, l
 		// add it for all received block messages
 		d.log.Info("got block message and save it. height=%d, hash=%s, time=%d", h.block.Header.Height, h.block.HeaderHash.Hex(), time.Now().UnixNano())
 		// writeblock
-		err := d.chain.WriteBlock(h.block)
+		txPool := d.seele.TxPool().Pool
+		err := d.chain.WriteBlock(h.block, txPool)
 
 		if err != nil && !errors.IsOrContains(err, core.ErrBlockAlreadyExists) {
 			d.log.Error("failed to write block err=%s", err)
@@ -597,7 +674,7 @@ func (d *Downloader) processBlocks(headInfos []*downloadInfo, ancestor uint64, l
 				}
 				for _, localBlock := range localBlocks {
 					d.log.Info("write back local blocks: %d", localBlock.Header.Height)
-					if err = d.chain.WriteBlock(localBlock); err != nil {
+					if err = d.chain.WriteBlock(localBlock, txPool); err != nil {
 						d.log.Error("failed to write localBlock back err=%s, height: %d", err, localBlock.Header.Height)
 						break
 					}

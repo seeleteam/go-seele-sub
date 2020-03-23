@@ -153,7 +153,7 @@ func NewBlockchain(bcStore store.BlockchainStore, accountStateDB database.Databa
 	bc.currentBlock.Store(currentBlock)
 
 	// recover height-to-block mapping
-	bc.recoverHeightIndices()
+	// bc.recoverHeightIndices()
 
 	td, err := bcStore.GetBlockTotalDifficulty(currentHeaderHash)
 	if err != nil {
@@ -165,6 +165,21 @@ func NewBlockchain(bcStore store.BlockchainStore, accountStateDB database.Databa
 	bc.blockLeaves.Add(blockIndex)
 
 	return bc, nil
+}
+
+// BCStore returns the BCStore in storage.
+func (bc *Blockchain) BCStore() store.BlockchainStore {
+	return bc.bcStore
+}
+
+// GetCurrentBlockValue return currentBlock atomic value
+func (bc *Blockchain) GetCurrentBlockValue() atomic.Value {
+	return bc.currentBlock
+}
+
+// StoreCurBlock store current block
+func (bc *Blockchain) StoreCurBlock(block *types.Block) {
+	bc.currentBlock.Store(block)
 }
 
 // AccountDB returns the account state database in blockchain.
@@ -257,9 +272,9 @@ func (bc *Blockchain) GetCurrentInfo() (*types.Block, *state.Statedb, error) {
 }
 
 // WriteBlock writes the specified block to the blockchain store.
-func (bc *Blockchain) WriteBlock(block *types.Block) error {
+func (bc *Blockchain) WriteBlock(block *types.Block, txPool *Pool) error {
 	startWriteBlockTime := time.Now()
-	if err := bc.doWriteBlock(block); err != nil {
+	if err := bc.doWriteBlock(block, txPool); err != nil {
 		return err
 	}
 	markTime := time.Since(startWriteBlockTime)
@@ -272,7 +287,7 @@ func (bc *Blockchain) WriteHeader(*types.BlockHeader) error {
 	return ErrNotSupported
 }
 
-func (bc *Blockchain) doWriteBlock(block *types.Block) error {
+func (bc *Blockchain) doWriteBlock(block *types.Block, pool *Pool) error {
 	bc.lock.Lock()
 	defer bc.lock.Unlock()
 
@@ -331,6 +346,15 @@ func (bc *Blockchain) doWriteBlock(block *types.Block) error {
 		Transactions: make([]*types.Transaction, len(block.Transactions)),
 	}
 	copy(currentBlock.Transactions, block.Transactions)
+	for i, tx := range block.Transactions { // for 1st tx is reward tx, no need to check the duplicate
+		if i == 0 {
+			continue
+		}
+		if !pool.cachedTxs.has(tx.Hash) {
+			bc.log.Debug("[CachedTxs] add tx %+v from synced block", tx.Hash)
+			pool.cachedTxs.add(tx)
+		}
+	}
 
 	if block.Debts != nil {
 		currentBlock.Debts = make([]*types.Debt, len(block.Debts))
