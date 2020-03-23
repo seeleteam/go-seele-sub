@@ -471,7 +471,7 @@ func (ser *server) snapshot(chain consensus.ChainReader, height uint64, hash com
 			// snap = newSnapshot(ser.config.Epoch, height, h.Hash(), verifier.NewVerifierSet(curvers, ser.config.ProposerPolicy))
 			// FIXME need to save not so frequently
 			ser.log.Info("get snap from last height")
-			swExtra, err := types.ExtractSecondWitnessExtra(h)
+			swExtra, err := types.ExtractSecondWitnessInfo(h)
 			if err != nil {
 				ser.log.Error("failed to extra secondwitness extra, err", err)
 				return nil, err

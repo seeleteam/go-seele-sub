@@ -240,6 +240,23 @@ func makeTransactionData(client *rpc.Client) (*keystore.Key, *types.TransactionD
 	return key, txd, nil
 }
 
+func makeSubTransaction(context *cli.Context, client *rpc.Client) ([]interface{}, error) {
+	key, txd, err := makeTransactionData(client)
+	if err != nil {
+		return nil, err
+	}
+	err = checkTxCount(client, txd)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := util.GenerateSubTx(key.PrivateKey, txd.To, txd.Amount, txd.GasPrice, txd.GasLimit, txd.AccountNonce, txd.Payload, heightValue)
+	if err != nil {
+		return nil, err
+	}
+
+	return []interface{}{*tx}, nil
+}
+
 func onTxAdded(inputs []interface{}, result interface{}) error {
 	if !result.(bool) {
 		fmt.Println("failed to send transaction")

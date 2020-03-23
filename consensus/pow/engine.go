@@ -6,6 +6,7 @@
 package pow
 
 import (
+	"crypto/ecdsa"
 	"math"
 	"math/big"
 	"math/rand"
@@ -126,6 +127,10 @@ func (engine *Engine) Seal(reader consensus.ChainReader, block *types.Block, sto
 	return nil
 }
 
+func (engine *Engine) GetPrivateKey() *ecdsa.PrivateKey {
+	return nil
+}
+
 func verifyTarget(header *types.BlockHeader) error {
 	headerHash := header.Hash()
 	var hashInt big.Int
@@ -150,22 +155,22 @@ func getMiningTarget(difficulty *big.Int) *big.Int {
 // This function is used to determine which coinbase can mine.
 
 func getSecondMiningTarget(time uint64, parentHeader *types.BlockHeader) *big.Int {
-    // target = maxUint256 / current difficulty
-    // current difficulty = 20,000,000 / min((current time - parentTime) / 20 + 1, 100)
+	// target = maxUint256 / current difficulty
+	// current difficulty = 20,000,000 / min((current time - parentTime) / 20 + 1, 100)
 
-    parentTime := parentHeader.CreateTimestamp.Uint64()
+	parentTime := parentHeader.CreateTimestamp.Uint64()
 
-    // the difficulty should be high at the beginning
-    maxDifficulty := big.NewInt(20000000)
-    interval := ((time - parentTime)  / 20 + 1)
-    x := big.NewInt(int64(interval))
-    big100 := big.NewInt(100)
+	// the difficulty should be high at the beginning
+	maxDifficulty := big.NewInt(20000000)
+	interval := ((time-parentTime)/20 + 1)
+	x := big.NewInt(int64(interval))
+	big100 := big.NewInt(100)
 
-    if x.Cmp(big100) > 0 {
-        x = big100
-    }
-    var currDifficulty = big.NewInt(0)
-    currDifficulty.Div(maxDifficulty, x)
+	if x.Cmp(big100) > 0 {
+		x = big100
+	}
+	var currDifficulty = big.NewInt(0)
+	currDifficulty.Div(maxDifficulty, x)
 
-    return new(big.Int).Div(maxUint256, currDifficulty)
+	return new(big.Int).Div(maxUint256, currDifficulty)
 }

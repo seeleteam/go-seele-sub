@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -190,4 +191,8 @@ func (s *server) Seal(chain consensus.ChainReader, block *types.Block, stop <-ch
 
 func (s *server) VerifyHeader(chain consensus.ChainReader, header *types.BlockHeader) error {
 	return s.verifyHeader(chain, header, nil)
+}
+
+func (s *server) GetPrivateKey() *ecdsa.PrivateKey {
+	return s.privateKey
 }

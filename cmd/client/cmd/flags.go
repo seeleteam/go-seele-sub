@@ -71,6 +71,22 @@ var (
 		Destination: &heightValue,
 	}
 
+	startHeightValue int64
+	startHeightFlag  = cli.Int64Flag{
+		Name:        "startHeight",
+		Value:       0,
+		Usage:       "block height or current block height for negative value",
+		Destination: &startHeightValue,
+	}
+
+	endHeightValue int64
+	endHeightFlag  = cli.Int64Flag{
+		Name:        "endHeight",
+		Value:       -1,
+		Usage:       "block height or current block height for negative value",
+		Destination: &endHeightValue,
+	}
+
 	trialValue string
 	trialFlag  = cli.StringFlag{
 		Name:        "trial, t",

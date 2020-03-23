@@ -50,6 +50,8 @@ const (
 
 	SmartContractNonceForkHeight = 1100000
 
+	RelayInterval = uint64(20)
+
 	// LightChainDir lightchain data directory based on config.DataRoot
 	LightChainDir = "/db/lightchain"
 

@@ -23,6 +23,12 @@ const (
 	// AccountStateDir account state info directory based on config.DataRoot
 	AccountStateDir = "/db/accountState"
 
+	// AccountIndexDir
+	AccountIndexDir = "/db/accountIndex"
+
+	// IndexAccountDir
+	IndexAccountDir = "/db/indexAccount"
+
 	// DebtManagerDir to-be-sent debt directory based on config.DataRoot
 	DebtManagerDir = "/db/debtManager"
 

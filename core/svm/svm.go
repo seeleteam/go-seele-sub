@@ -202,7 +202,7 @@ func processEvmContract(ctx *Context, gas uint64) (*types.Receipt, error) {
 		// ctx.Statedb.SetNonce(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1)// from account
 		ctx.Statedb.SetNonce2(ctx.Tx.Data.From, ctx.Tx.Data.AccountNonce+1, ctx.Statedb.GetTxCount(ctx.Tx.Data.From)+1)
 		// to account
-		ctx.Statedb.SetNonce2(ctx.Tx.Data.From, ctx.Statedb.GetNonce(ctx.Tx.Data.To), ctx.Statedb.GetTxCount(ctx.Tx.Data.To)+1)
+		ctx.Statedb.SetNonce2(ctx.Tx.Data.To, ctx.Statedb.GetNonce(ctx.Tx.Data.To), ctx.Statedb.GetTxCount(ctx.Tx.Data.To)+1)
 		receipt.Result, leftOverGas, err = e.Call(caller, ctx.Tx.Data.To, ctx.Tx.Data.Payload, gas, ctx.Tx.Data.Amount)
 	}
 	receipt.UsedGas = gas - leftOverGas
@@ -220,7 +220,12 @@ func handleFee(ctx *Context, receipt *types.Receipt, snapshot int) (*types.Recei
 	// Transfer fee to coinbase
 	// Note, the sender should always have enough balance.
 	ctx.Statedb.SubBalance(ctx.Tx.Data.From, totalFee)
-	ctx.Statedb.AddBalance(ctx.BlockHeader.Creator, totalFee)
+	if ctx.BlockHeader.Consensus != types.BftConsensus {
+		ctx.Statedb.AddBalance(ctx.BlockHeader.Creator, totalFee)
+	} else {
+		ctx.Statedb.AddBalance(common.SubchainFeeAccount, totalFee)
+	}
+
 	receipt.TotalFee = totalFee.Uint64()
 
 	// Record statedb hash

@@ -6,6 +6,8 @@
 package consensus
 
 import (
+	"crypto/ecdsa"
+
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/core/types"
 	"github.com/seeleteam/go-seele/rpc"
@@ -26,6 +28,9 @@ type Engine interface {
 
 	// SetThreads set miner threads
 	SetThreads(thread int)
+
+	// bft use only
+	GetPrivateKey() *ecdsa.PrivateKey
 }
 
 // BFT is a consensus engine to avoid byzantine failure

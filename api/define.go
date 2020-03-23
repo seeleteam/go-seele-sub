@@ -7,6 +7,7 @@ import (
 	"github.com/seeleteam/go-seele/core/state"
 	"github.com/seeleteam/go-seele/core/store"
 	"github.com/seeleteam/go-seele/core/types"
+	"github.com/seeleteam/go-seele/database"
 	"github.com/seeleteam/go-seele/log"
 	"github.com/seeleteam/go-seele/p2p"
 	"github.com/seeleteam/go-seele/rpc"
@@ -24,6 +25,9 @@ type Backend interface {
 	ProtocolBackend() Protocol
 	Log() *log.SeeleLog
 	IsSyncing() bool
+
+	GetAccountIndexDB() database.Database
+	GetIndexAccountDB() database.Database
 
 	GetBlock(hash common.Hash, height int64) (*types.Block, error)
 	GetBlockTotalDifficulty(hash common.Hash) (*big.Int, error)
@@ -81,6 +85,12 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 			Version:   "1.0",
 			Service:   NewPrivateDebugAPI(apiBackend),
 			Public:    false,
+		},
+		{
+			Namespace: "subchain",
+			Version:   "1.0",
+			Service:   NewPublicSubchainAPI(apiBackend),
+			Public:    true,
 		}}
 }
 
