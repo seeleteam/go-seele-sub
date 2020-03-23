@@ -154,6 +154,7 @@ func (c *core) handleTimeoutMsg() {
 		}
 	}
 	lastProposal, _ := c.server.LastProposal()
+	c.log.Info("last proposal != nil (%t), height %d, seq %d", lastProposal != nil, lastProposal.Height(), c.current.Sequence().Uint64())
 	if lastProposal != nil && lastProposal.Height() >= c.current.Sequence().Uint64() {
 		c.log.Info("round change timeout, catch up lastest sequence at height %d", lastProposal.Height())
 		c.startNewRound(common.Big0)
