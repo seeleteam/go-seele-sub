@@ -85,13 +85,14 @@ type SeeleProtocol struct {
 	log    *log.SeeleLog
 
 	debtManager *DebtManager
+	engine      consensus.Engine
 }
 
 // Downloader return a pointer of the downloader
 func (s *SeeleProtocol) Downloader() *downloader.Downloader { return s.downloader }
 
 // NewSeeleProtocol create SeeleProtocol
-func NewSeeleProtocol(seele *SeeleService, log *log.SeeleLog) (s *SeeleProtocol, err error) {
+func NewSeeleProtocol(seele *SeeleService, log *log.SeeleLog, engine consensus.Engine) (s *SeeleProtocol, err error) {
 	s = &SeeleProtocol{
 		Protocol: p2p.Protocol{
 			Name:    common.SeeleProtoName,
@@ -108,8 +109,11 @@ func NewSeeleProtocol(seele *SeeleService, log *log.SeeleLog) (s *SeeleProtocol,
 		syncCh:     make(chan struct{}),
 
 		peerSet: newPeerSet(),
+		engine:  engine,
 	}
-
+	if handler, ok := s.engine.(consensus.Handler); ok {
+		handler.SetBroadcaster(s)
+	}
 	s.Protocol.AddPeer = s.handleAddPeer
 	s.Protocol.DeletePeer = s.handleDelPeer
 	s.Protocol.GetPeer = s.handleGetPeer
@@ -831,6 +835,7 @@ func (sp *SeeleProtocol) FindPeers(targets map[common.Address]bool) map[common.A
 		addr := p.Node.ID
 		if targets[addr] {
 			m[addr] = p
+			sp.log.Info("find peer: %s", p.Node.ID.String())
 		}
 	}
 

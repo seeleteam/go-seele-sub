@@ -156,8 +156,43 @@ func (s *server) Broadcast(verSet bft.VerifierSet, payload []byte) error {
 	return nil
 }
 
-// Gossip sends a message to all Verifiers (exclude self)
+// // Gossip sends a message to all Verifiers (exclude self)
+// func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
+// 	hash := crypto.HashBytes(payload)
+// 	s.knownMessages.Add(hash, true)
+
+// 	targets := make(map[common.Address]bool)
+// 	for _, ver := range verSet.List() {
+// 		if ver.Address() != s.Address() { // exclude self
+// 			targets[ver.Address()] = true
+// 		}
+// 	}
+
+// 	// send out message to all targets
+// 	if s.broadcaster != nil && len(targets) > 0 {
+// 		peers := s.broadcaster.FindPeers(targets)
+// 		for addr, p := range peers {
+// 			ms, ok := s.recentMessages.Get(addr)
+// 			var m *lru.ARCCache
+// 			if ok {
+// 				m, _ := ms.(*lru.ARCCache)
+// 				if _, alreadyHave := m.Get(hash); alreadyHave {
+// 					continue
+// 				}
+// 			} else { // not ok, cache it
+// 				m, _ = lru.NewARC(inmemoryMessages)
+// 			}
+// 			m.Add(hash, true)
+// 			s.recentMessages.Add(addr, m)
+// 			go p.Send(bftMsg, payload)
+
+// 		}
+// 	}
+// 	return nil
+// }
+
 func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
+	common.Trace2()
 	hash := crypto.HashBytes(payload)
 	s.knownMessages.Add(hash, true)
 
@@ -165,29 +200,51 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 	for _, ver := range verSet.List() {
 		if ver.Address() != s.Address() { // exclude self
 			targets[ver.Address()] = true
+			// fmt.Printf("[TEST] Address %s", ver.Address())
 		}
 	}
+	s.log.Error("[TEST] Gossip run here")
+	s.log.Error("[TEST] s.broadcaster != nil: %t && len(targets): %d", s.broadcaster != nil, len(targets))
 
 	// send out message to all targets
 	if s.broadcaster != nil && len(targets) > 0 {
+		s.log.Error("[TEST] Gossip run here")
 		peers := s.broadcaster.FindPeers(targets)
+		s.log.Error("[TEST] broadcaster find peers len %d", len(peers))
 		for addr, p := range peers {
 			ms, ok := s.recentMessages.Get(addr)
-			var m *lru.ARCCache
+			common.Trace2()
 			if ok {
-				m, _ := ms.(*lru.ARCCache)
+				var m *lru.ARCCache
+
+				m, _ = ms.(*lru.ARCCache)
 				if _, alreadyHave := m.Get(hash); alreadyHave {
+					common.Trace2()
+					s.log.Info("recent message have the msg, continue")
 					continue
 				}
 			} else { // not ok, cache it
+				s.log.Info("recent message doesn't  have the msg, create a new ARCCache")
+				common.Trace2()
+				var m *lru.ARCCache
+
 				m, _ = lru.NewARC(inmemoryMessages)
+				// fmt.Printf("hash size %d, ARCcache size %d\n", len(hash), inmemoryMessages)
+				m.Add(hash, true)
+				common.Trace2()
+				s.recentMessages.Add(addr, m)
 			}
-			m.Add(hash, true)
-			s.recentMessages.Add(addr, m)
+			// // fmt.Printf("hash size %d, ARCcache size %d\n", len(hash), inmemoryMessages)
+			// m.Add(hash, true)
+			// common.Trace2()
+			// s.recentMessages.Add(addr, m)
+			// common.Trace2()
+			s.log.Error("[TEST] send payload %+v to peer %s", payload, addr)
 			go p.Send(bftMsg, payload)
 
 		}
 	}
+	s.log.Error("[TEST] Gossip run here")
 	return nil
 }
 
@@ -234,9 +291,9 @@ func (s *server) Commit(proposal bft.Proposal, seals [][]byte) error {
 	// -- if success, the ChainHeadEvent event will be broadcasted, try to build
 	//    the next block and the previous Seal() will be stopped.
 	// -- otherwise, a error will be returned and a round change event will be fired.
-	if s.broadcaster != nil {
-		s.broadcaster.Enqueue(engineTypeID, block)
-	}
+	// if s.broadcaster != nil {
+	// 	s.broadcaster.Enqueue(engineTypeID, block)
+	// }
 	return nil
 }
 

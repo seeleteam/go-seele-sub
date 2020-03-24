@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/consensus"
 	"github.com/seeleteam/go-seele/consensus/istanbul"
@@ -177,9 +177,9 @@ func (sb *backend) Commit(proposal istanbul.Proposal, seals [][]byte) error {
 		return nil
 	}
 
-	if sb.broadcaster != nil {
-		sb.broadcaster.Enqueue(fetcherID, block)
-	}
+	// if sb.broadcaster != nil {
+	// 	sb.broadcaster.Enqueue(fetcherID, block)
+	// }
 	return nil
 }
 

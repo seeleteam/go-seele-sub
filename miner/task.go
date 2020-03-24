@@ -13,7 +13,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/seeleteam/go-seele/common"
-	"github.com/seeleteam/go-seele/common/hexutil"
 	"github.com/seeleteam/go-seele/common/memory"
 	"github.com/seeleteam/go-seele/consensus"
 	"github.com/seeleteam/go-seele/core"
@@ -343,7 +342,7 @@ func (task *Task) chooseTransactionsSubchain(seele SeeleBackend, statedb *state.
 					// task.depositVers = append(task.depositVers, tx.FromAccount())
 				}
 				// test code
-				task.depositVers = append(task.depositVers, common.BytesToAddress(hexutil.MustHexToBytes("0x42cab76173e399824422ae12c63f6f8c84e6ca71")))
+				// task.depositVers = append(task.depositVers, common.BytesToAddress(hexutil.MustHexToBytes("0x42cab76173e399824422ae12c63f6f8c84e6ca71")))
 				// end test code
 				if tx.IsExitTx(rootAccounts) {
 					task.exitVers = append(task.exitVers, tx.ToAccount())
