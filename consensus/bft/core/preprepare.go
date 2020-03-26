@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/seeleteam/go-seele/consensus"
@@ -15,8 +14,10 @@ send /
 
 // sendPreprepare
 func (c *core) sendPreprepare(request *bft.Request) {
+	c.log.Warn("bft-1 sendPreprepare")
 	// sequence is the proposal height and this node is the proposer
 	// initiate the preprepare message and encode it
+	c.log.Info("[TEST sendPreprepare] current seq %d, proposal height %d, IsProposer %t", c.current.Sequence().Uint64(), request.Proposal.Height(), c.isProposer())
 	if c.current.Sequence().Uint64() == request.Proposal.Height() && c.isProposer() {
 		curView := c.currentView()
 		preprepare, err := Encode(&bft.Preprepare{
@@ -32,7 +33,7 @@ func (c *core) sendPreprepare(request *bft.Request) {
 			Code: msgPreprepare,
 			Msg:  preprepare,
 		})
-		fmt.Println("sendPreprepare->broadcast->Post")
+		c.log.Info("sendPreprepare->broadcast->Post")
 
 	}
 }
@@ -40,17 +41,20 @@ func (c *core) sendPreprepare(request *bft.Request) {
 //
 // Decode -> checkMessage(make usre it is new) -> ensure it is from proposer -> verify proposal received -> accept preprepare
 func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
-	c.log.Info("bft-0 handlePreprepare msg")
+	c.log.Warn("bft-1 handlePreprepare msg")
+	c.log.Info("from: ", src, "state:", c.state)
 	// 1. Decode preprepare message first
 	var preprepare *bft.Preprepare
 	err := msg.Decode(&preprepare)
 	if err != nil {
+		c.log.Error("decode preprepare msg with err %s", err)
 		return errDecodePreprepare
 	}
 
 	// we need to check the message: ensure we have the same view with the preprepare message
 	// if not (namely, it is old message), see if we need to broadcast Commit.
 	if err := c.checkMessage(msgPreprepare, preprepare.View); err != nil {
+		c.log.Info("handle preprepare with err %s", err)
 		if err == errOldMsg {
 			// get all verifiers for this proposal
 			verSet := c.server.ParentVerifiers(preprepare.Proposal).Copy()
@@ -89,21 +93,24 @@ func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
 		}
 		return err
 	}
+	c.log.Info("handlePreprepare->decodeMsg->checkMsg->Verify->AcceptPrepare->SetSate->sendCommit")
 
 	// accept the preprepare message
 	if c.state == StateAcceptRequest {
 		if c.current.IsHashLocked() { // there is a locked proposal
+			c.log.Error("[TEST] hash is locked")
 			if preprepare.Proposal.Hash() == c.current.GetLockedHash() { // at the same proposal
 				c.acceptPreprepare(preprepare)
-				c.setState(StatePreprepared)
+				c.setState(StatePrepared)
 				c.sendCommit()
 			} else { // at different proposals. change round
 				c.sendNextRoundChange()
 			}
 		} else { // there is no locked proposal
+			c.log.Error("[TEST] hash is NOT locked")
 			c.acceptPreprepare(preprepare)
 			c.setState(StatePreprepared)
-			c.sendCommit()
+			c.sendPrepare()
 		}
 	}
 

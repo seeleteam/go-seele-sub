@@ -2,7 +2,6 @@ package server
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	"sync"
 	"time"
 
@@ -147,12 +146,15 @@ func (s *server) EventMux() *event.TypeMux {
 func (s *server) Broadcast(verSet bft.VerifierSet, payload []byte) error {
 	// fan out
 	s.Gossip(verSet, payload)
+	s.log.Info("s1: gossip payload to verifier")
+
 	// inform self with event message
 	msg := bft.MessageEvent{
 		Payload: payload,
 	}
 	go s.bftEventMux.Post(msg)
-	// fmt.Println("Post in Broadcast")
+	s.log.Info("s2: post payload to inform self")
+	s.log.Info("[TEST] Gossip in Broadcast")
 	return nil
 }
 
@@ -203,7 +205,6 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 			// fmt.Printf("[TEST] Address %s", ver.Address())
 		}
 	}
-	s.log.Error("[TEST] Gossip run here")
 	s.log.Error("[TEST] s.broadcaster != nil: %t && len(targets): %d", s.broadcaster != nil, len(targets))
 
 	// send out message to all targets
@@ -214,8 +215,10 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 		for addr, p := range peers {
 			ms, ok := s.recentMessages.Get(addr)
 			common.Trace2()
+			var m *lru.ARCCache
+
 			if ok {
-				var m *lru.ARCCache
+				// var m *lru.ARCCache
 
 				m, _ = ms.(*lru.ARCCache)
 				if _, alreadyHave := m.Get(hash); alreadyHave {
@@ -226,25 +229,20 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 			} else { // not ok, cache it
 				s.log.Info("recent message doesn't  have the msg, create a new ARCCache")
 				common.Trace2()
-				var m *lru.ARCCache
-
+				// var m *lru.ARCCache
 				m, _ = lru.NewARC(inmemoryMessages)
-				// fmt.Printf("hash size %d, ARCcache size %d\n", len(hash), inmemoryMessages)
-				m.Add(hash, true)
-				common.Trace2()
-				s.recentMessages.Add(addr, m)
 			}
 			// // fmt.Printf("hash size %d, ARCcache size %d\n", len(hash), inmemoryMessages)
-			// m.Add(hash, true)
+			m.Add(hash, true)
 			// common.Trace2()
-			// s.recentMessages.Add(addr, m)
+			s.recentMessages.Add(addr, m)
 			// common.Trace2()
-			s.log.Error("[TEST] send payload %+v to peer %s", payload, addr)
+			s.log.Error("[TEST] send payload to peer %s", addr)
 			go p.Send(bftMsg, payload)
 
 		}
 	}
-	s.log.Error("[TEST] Gossip run here")
+	s.log.Error("[TEST] Gossip sucessfully")
 	return nil
 }
 
@@ -280,7 +278,6 @@ func (s *server) Commit(proposal bft.Proposal, seals [][]byte) error {
 
 	if s.proposedBlockHash == block.Hash() {
 		s.commitCh <- block
-		fmt.Println("sending a block to commit channel")
 		s.log.Info("server commitCh enchannel with block %+v\n", block)
 		return nil
 	} else {

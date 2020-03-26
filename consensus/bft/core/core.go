@@ -140,6 +140,7 @@ func PrepareCommittedSeal(hash common.Hash) []byte {
 
 // commit commit core'seal data
 func (c *core) commit() {
+	c.log.Info("bft-4 commit")
 	c.setState(StateCommitted)
 
 	proposal := c.current.Proposal()
@@ -180,6 +181,9 @@ func (c *core) setState(state State) {
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // startNewRound start a new round.
 func (c *core) startNewRound(round *big.Int) {
+
+	common.Trace()
+	c.log.Warn("bft-0 startNewRound")
 	rounChanged := false
 	//get last proposer and proposal
 	lastProposal, lastProposer := c.server.LastProposal()
@@ -238,7 +242,7 @@ func (c *core) startNewRound(round *big.Int) {
 			c.sendPreprepare(c.current.pendingRequest)
 		}
 	}
-	c.newRoundChangeTimer()
+	// c.newRoundChangeTimer()
 	c.log.Info("new_round %d, new_seq %d, new_proposer %v, verSet %v, size %d, isProposer %t", newView.Round, newView.Sequence, c.verSet.GetProposer(), c.verSet.List(), c.verSet.Size(), c.isProposer())
 }
 

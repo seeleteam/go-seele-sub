@@ -58,10 +58,10 @@ func (c *core) handleEvents() {
 			if !ok {
 				return
 			}
-			// c.log.Info("[handleEvents] get an event %+v", event)
+			c.log.Info("[handleEvents] get an event %+v", event)
 			switch e := event.Data.(type) {
 			case bft.RequestEvent: // proposal handle
-				// c.log.Info("[handleEvents]-1 request event")
+				c.log.Info("[handleEvents]-1 request event")
 				req := &bft.Request{
 					Proposal: e.Proposal,
 				}
@@ -70,13 +70,13 @@ func (c *core) handleEvents() {
 					c.storeRequestMsg(req)
 				}
 			case bft.MessageEvent: // prepare, commit all other msgs
-				// c.log.Info("[handleEvents]-2 msg event")
+				c.log.Info("[handleEvents]-2 msg event")
 				if err := c.handleMsg(e.Payload); err == nil {
 					c.log.Info("after handleMsg, gossip payload to verifier")
 					c.server.Gossip(c.verSet, e.Payload)
 				}
 			case backlogEvent: // internal event
-				// c.log.Info("[handleEvents]-3 backlog event")
+				c.log.Info("[handleEvents]-3 backlog event")
 				if err := c.handleCheckedMsg(e.msg, e.src); err == nil {
 					p, err := e.msg.Payload()
 					if err != nil {
@@ -90,11 +90,13 @@ func (c *core) handleEvents() {
 			if !ok {
 				return
 			}
+			c.log.Warn("time out event")
 			c.handleTimeoutMsg()
 		case e, ok := <-c.finalCommittedSub.Chan():
 			if !ok {
 				return
 			}
+			c.log.Info("final commit event")
 			switch e.Data.(type) {
 			case bft.FinalCommittedEvent:
 				c.handleFinalCommitted()
@@ -106,6 +108,7 @@ func (c *core) sendEvent(event interface{}) {
 	c.server.EventMux().Post(event)
 	fmt.Println("Post in sendEvent")
 }
+
 func (c *core) handleMsg(payload []byte) error {
 	msg := new(message)
 	if err := msg.ValidatePayload(payload, c.verifyFn); err != nil {
@@ -129,7 +132,8 @@ func (c *core) handleCheckedMsg(msg *message, src bft.Verifier) error {
 		}
 		return err
 	}
-	// fmt.Printf("msg code types: msgPreprepare %+v msgPrepare %+v, msgCommit %+v, msgRoundChange %+v\n", msgPreprepare, msgPrepare, msgCommit, msgRoundChange)
+	c.log.Debug("msg code types: msgPreprepare %+v msgPrepare %+v, msgCommit %+v, msgRoundChange %+v\n", msgPreprepare, msgPrepare, msgCommit, msgRoundChange)
+	c.log.Info("from %s: msg: %d\n", src, msg.Code)
 	switch msg.Code {
 	case msgPreprepare:
 		return backlog(c.handlePreprepare(msg, src)) //TODO
@@ -154,7 +158,7 @@ func (c *core) handleTimeoutMsg() {
 		}
 	}
 	lastProposal, _ := c.server.LastProposal()
-	c.log.Info("last proposal != nil (%t), height %d, seq %d", lastProposal != nil, lastProposal.Height(), c.current.Sequence().Uint64())
+	c.log.Info("last proposal != nil (%t), last height %d, seq %d", lastProposal != nil, lastProposal.Height(), c.current.Sequence().Uint64())
 	if lastProposal != nil && lastProposal.Height() >= c.current.Sequence().Uint64() {
 		c.log.Info("round change timeout, catch up lastest sequence at height %d", lastProposal.Height())
 		c.startNewRound(common.Big0)

@@ -12,6 +12,7 @@ import (
 )
 
 func (c *core) sendPrepare() {
+	c.logger.Warn("bft-2 sendPrepare")
 	sub := c.current.Subject()
 	encodedSubject, err := Encode(sub)
 	if err != nil {
@@ -22,10 +23,13 @@ func (c *core) sendPrepare() {
 		Code: msgPrepare,
 		Msg:  encodedSubject,
 	})
+	c.logger.Info("sendPrepare: Encode->broadcast")
 }
 
 func (c *core) handlePrepare(msg *message, src istanbul.Validator) error {
 	// Decode PREPARE message
+	c.logger.Warn("bft-2 handlePrepare")
+
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)
 	if err != nil {
@@ -52,7 +56,7 @@ func (c *core) handlePrepare(msg *message, src istanbul.Validator) error {
 		c.setState(StatePrepared)
 		c.sendCommit()
 	}
-
+	c.logger.Info("handlePrepare: Decode->CheckMsg->VerifyPrepare->acceptPapre->setState->sendCommit")
 	return nil
 }
 

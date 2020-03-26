@@ -12,12 +12,12 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/core/types"
 	"github.com/seeleteam/go-seele/log"
 	"github.com/seeleteam/go-seele/p2p"
-	"github.com/seeleteam/go-seele/seele/download"
+	downloader "github.com/seeleteam/go-seele/seele/download"
 )
 
 const (
@@ -111,6 +111,7 @@ func (p *peer) Info() *PeerInfo {
 
 // Send writes an RLP-encoded message with the given code.
 func (p *peer) Send(msgcode uint16, data interface{}) error {
+	p.log.Info("peer send msgcode %d", msgcode)
 	buff := common.SerializePanic(data)
 	return p2p.SendMessage(p.rw, msgcode, buff)
 }
@@ -263,7 +264,7 @@ func (p *peer) RequestBlocksByHashOrNumber(magic uint32, origin common.Hash, num
 	}
 	buff := common.SerializePanic(query)
 
-	p.log.Debug("peer send [downloader.GetBlocksMsg] query with size %d byte,peer:%s", len(buff),p.peerStrID)
+	p.log.Debug("peer send [downloader.GetBlocksMsg] query with size %d byte,peer:%s", len(buff), p.peerStrID)
 	return p2p.SendMessage(p.rw, downloader.GetBlocksMsg, buff)
 }
 

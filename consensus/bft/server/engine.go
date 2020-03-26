@@ -189,5 +189,6 @@ func (s *server) Seal(chain consensus.ChainReader, block *types.Block, stop <-ch
 }
 
 func (s *server) VerifyHeader(chain consensus.ChainReader, header *types.BlockHeader) error {
+	s.log.Info("bft server start verify header")
 	return s.verifyHeader(chain, header, nil)
 }
