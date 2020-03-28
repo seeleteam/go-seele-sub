@@ -18,6 +18,7 @@ import (
 	"github.com/seeleteam/go-seele/consensus"
 	"github.com/seeleteam/go-seele/core"
 	"github.com/seeleteam/go-seele/core/types"
+	"github.com/seeleteam/go-seele/database"
 	"github.com/seeleteam/go-seele/event"
 	"github.com/seeleteam/go-seele/log"
 )
@@ -39,6 +40,8 @@ type SeeleBackend interface {
 	BlockChain() *core.Blockchain
 	DebtPool() *core.DebtPool
 	GenesisInfo() core.GenesisInfo
+	GetAccountIndexDB() database.Database
+	GetIndexAccountDB() database.Database
 }
 
 // Miner defines base elements of miner
@@ -391,13 +394,7 @@ func (miner *Miner) prepareNewBlock(recv chan *types.Block) error {
 
 	miner.current = NewTask(header, miner.coinbase, miner.debtVerifier)
 	// here we add the verifierTx, challengeTx and exitTx
-	// before that, once we have detected any challenged tx, we need to revert the blockchain first
-	if miner.current.header.Consensus == types.BftConsensus {
-		err = miner.current.applyTransactionsSubchain(miner.seele, stateDB, miner.seele.BlockChain().AccountDB(), miner.log, &miner.revertedTx)
-	} else {
-		err = miner.current.applyTransactionsAndDebts(miner.seele, stateDB, miner.seele.BlockChain().AccountDB(), miner.log)
-
-	}
+	err = miner.current.applyTransactionsAndDebts(miner.seele, stateDB, miner.seele.BlockChain().AccountDB(), parent, miner.engine, miner.log)
 	if err != nil {
 		return fmt.Errorf("failed to apply transaction %s", err)
 	}

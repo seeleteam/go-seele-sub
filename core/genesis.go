@@ -222,6 +222,10 @@ func GetGenesis(info *GenesisInfo) *Genesis {
 	}
 }
 
+func (g *Genesis) UpdateSecondWitness(extraInfo []byte) {
+	g.header.SecondWitness = extraInfo
+}
+
 // initateValidators: input: deposit smart contract; payload: bytecode used to call smart contract to get validators list
 // output: validators list and err
 // the inqury will be a transaction, so need some balance to make this inqury
@@ -376,6 +380,9 @@ func getStateDB(info *GenesisInfo) *state.Statedb {
 		info.Balance = big.NewInt(17500000000000000)
 		statedb.CreateAccount(info.Masteraccount)
 		statedb.SetBalance(info.Masteraccount, info.Balance)
+		// create fee account, shard 1 only
+		statedb.CreateAccount(common.SubchainFeeAccount)
+		statedb.SetBalance(common.SubchainFeeAccount, big.NewInt(0))
 	} else if info.ShardNumber == 2 {
 		info.Masteraccount, _ = common.HexToAddress("0xc71265f11acdacffe270c4f45dceff31747b6ac1")
 		info.Balance = big.NewInt(17500000000000000)

@@ -103,3 +103,28 @@ func GetNetworkID(client *rpc.Client) (string, error) {
 
 	return networkID, err
 }
+
+// GenerateTx generate a transaction based on the address type of to
+func GenerateSubTx(from *ecdsa.PrivateKey, to common.Address, amount *big.Int, price *big.Int, gasLimit uint64, nonce uint64, payload []byte, largestPackHeight int64) (*types.Transaction, error) {
+	fromAddr := crypto.GetAddress(&from.PublicKey)
+
+	var tx *types.Transaction
+	var err error
+	if to.IsEmpty() {
+		return nil, fmt.Errorf("empty To address: %d", 0)
+	} else {
+		switch to.Type() {
+		case common.AddressTypeExternal:
+			// always ignore the user input gas limit for transfer amount tx.
+			tx, err = types.NewSubTransaction(*fromAddr, to, amount, price, nonce, from, uint64(largestPackHeight))
+		default:
+			return nil, fmt.Errorf("unsupported address type: %d", to.Type())
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("create transaction err %s", err)
+	}
+
+	return tx, nil
+}

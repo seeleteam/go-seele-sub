@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/ecdsa"
+
 	"github.com/rcrowley/go-metrics"
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/consensus"
@@ -78,6 +80,10 @@ func (engine *PBFTEngine) Prepare(reader consensus.ChainReader, header *types.Bl
 	// TODO send request from here!
 	return nil
 
+}
+
+func (engine *PBFTEngine) GetPrivateKey() *ecdsa.PrivateKey {
+	return nil
 }
 
 // func (engine *PBFTEngine) Seal (reader consensus.ChainReader, block *) {}

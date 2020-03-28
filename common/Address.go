@@ -51,6 +51,9 @@ var EmptyAddress = Address{}
 // MaxSystemContractAddress max system contract address
 var MaxSystemContractAddress = BytesToAddress([]byte{4, 255})
 
+// Subchain fee account, used for shard 1 only
+var SubchainFeeAccount = BytesToAddress([]byte{1})
+
 // Address we use public key as node id
 type Address [AddressLen]byte
 

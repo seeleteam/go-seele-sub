@@ -8,6 +8,7 @@ import (
 	"github.com/seeleteam/go-seele/common/errors"
 	"github.com/seeleteam/go-seele/core/store"
 	"github.com/seeleteam/go-seele/core/types"
+	"github.com/seeleteam/go-seele/database"
 	"github.com/seeleteam/go-seele/log"
 	"github.com/seeleteam/go-seele/p2p"
 )
@@ -36,6 +37,10 @@ func (l *LightBackend) GetP2pServer() *p2p.Server { return l.s.p2pServer }
 
 // ChainBackend gets instance of blockchain
 func (l *LightBackend) ChainBackend() api.Chain { return l.s.chain }
+
+func (l *LightBackend) GetAccountIndexDB() database.Database { return nil }
+
+func (l *LightBackend) GetIndexAccountDB() database.Database { return nil }
 
 // Log gets instance of log
 func (l *LightBackend) Log() *log.SeeleLog { return l.s.log }

@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/crypto"
 	"github.com/seeleteam/go-seele/trie"
@@ -75,6 +76,8 @@ var (
 	// TransferAmountIntrinsicGas is the intrinsic gas to transfer amount.
 	TransferAmountIntrinsicGas = ethIntrinsicGas(nil)
 
+	SubTransactionIntrinsicGas = uint64(2000000)
+
 	CrossShardTransactionGas = TransferAmountIntrinsicGas
 
 	DebtGas = 2 * TransferAmountIntrinsicGas
@@ -108,6 +111,16 @@ type Transaction struct {
 type indexInBlock struct {
 	BlockHash common.Hash
 	Index     uint // index in block body
+}
+
+type AccountTxs struct {
+	Txs [][]byte
+}
+
+type PayloadExtra struct {
+	LargestPackHeight uint64      // largest height to pack this tx on subchain
+	HashForStem       common.Hash // For Stem contract use only
+	SignStringForStem string      // For Stem contract use only
 }
 
 // TxIndex represents an index that used to query block info by tx hash.
@@ -200,6 +213,66 @@ func newTx(from common.Address, to common.Address, amount *big.Int, price *big.I
 	}
 
 	tx.Hash = crypto.MustHash(txData)
+
+	return tx, nil
+}
+
+func NewSubTransaction(from, to common.Address, amount *big.Int, price *big.Int, nonce uint64, privKey *ecdsa.PrivateKey, largestPackHeight uint64) (*Transaction, error) {
+	gasLimit := SubTransactionIntrinsicGas
+
+	return newSubTx(from, to, amount, price, gasLimit, nonce, privKey, largestPackHeight)
+}
+
+func newSubTx(from common.Address, to common.Address, amount *big.Int, price *big.Int, gasLimit uint64, nonce uint64, privKey *ecdsa.PrivateKey, largestPackHeight uint64) (*Transaction, error) {
+	txData := TransactionData{
+		From:         from,
+		To:           to,
+		GasLimit:     gasLimit,
+		AccountNonce: nonce,
+	}
+
+	if amount != nil {
+		txData.Amount = new(big.Int).Set(amount)
+	}
+
+	if price != nil {
+		txData.GasPrice = new(big.Int).Set(price)
+	}
+
+	// get payload bytecode
+	val := []interface{}{
+		from,
+		to,
+		amount,
+		nonce,
+		price,
+		gasLimit,
+	}
+
+	dataForStem, err := rlp.EncodeToBytes(val)
+	if err != nil {
+		return nil, err
+	}
+
+	hashForStem := common.BytesToHash(crypto.Keccak256(dataForStem))
+	signatureForStem := *crypto.MustSign(privKey, hashForStem.Bytes())
+	payloadExtra := []interface{}{
+		largestPackHeight,
+		hashForStem,
+		string(signatureForStem.Sig),
+	}
+	txData.Payload, err = rlp.EncodeToBytes(payloadExtra)
+	if err != nil {
+		return nil, err
+	}
+
+	tx := &Transaction{
+		Data:      txData,
+		Signature: crypto.Signature{Sig: make([]byte, 0)},
+	}
+
+	tx.Hash = crypto.MustHash(txData)
+	tx.Signature = *crypto.MustSign(privKey, tx.Hash.Bytes())
 
 	return tx, nil
 }
@@ -329,7 +402,7 @@ func (tx *Transaction) ValidateState(statedb stateDB, height uint64) error {
 		return fmt.Errorf("balance is not enough, account:%s, balance:%v, amount:%v, fee:%v, cost:%v", tx.Data.From.Hex(), balance, tx.Data.Amount, fee, cost)
 	}
 
-	if (height >= common.ThirdForkHeight) {
+	if height >= common.ThirdForkHeight {
 		if accountNonce := statedb.GetNonce(tx.Data.From); tx.Data.AccountNonce < accountNonce {
 			return fmt.Errorf("nonce is too small, account:%s, tx nonce:%d, state db nonce:%d", tx.Data.From.Hex(), tx.Data.AccountNonce, accountNonce)
 		}
@@ -462,4 +535,13 @@ func ethIntrinsicGas(data []byte) uint64 {
 	gas += z * params.TxDataZeroGas
 
 	return gas
+}
+
+func ExtractTxPayload(payload common.Bytes) (*PayloadExtra, error) {
+	var payloadExtra *PayloadExtra
+	err := rlp.DecodeBytes(payload, &payloadExtra)
+	if err != nil {
+		return nil, err
+	}
+	return payloadExtra, nil
 }

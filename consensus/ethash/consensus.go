@@ -18,6 +18,7 @@ package ethash
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -210,6 +211,10 @@ func (ethash *Ethash) Prepare(reader consensus.ChainReader, header *types.BlockH
 	}
 
 	header.Difficulty = utils.GetDifficult(header.CreateTimestamp.Uint64(), parent)
+	return nil
+}
+
+func (ethash *Ethash) GetPrivateKey() *ecdsa.PrivateKey {
 	return nil
 }
 

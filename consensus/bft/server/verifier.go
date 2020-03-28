@@ -19,9 +19,9 @@ func (s *server) GetVerifierFromSWExtra(header *types.BlockHeader, addrs []commo
 
 	// get the new verifiers from n-1th block secondwitness
 	// check the verifier from previous deposit or exit txs:
-	var swExtra *types.SecondWitnessExtra
+	var swExtra *types.SecondWitnessInfo
 	// err := swExtra.ExtractSWExtra(header)
-	swExtra, err := types.ExtractSecondWitnessExtra(header)
+	swExtra, err := types.ExtractSecondWitnessInfo(header)
 	if err != nil {
 		s.log.Error("failed to extract secondwitness extra data, err : %s", err)
 		return err

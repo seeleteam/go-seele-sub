@@ -7,6 +7,7 @@ package backend
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"errors"
 	"math/big"
 	"math/rand"
@@ -351,6 +352,10 @@ func (sb *backend) Seal(chain consensus.ChainReader, block *types.Block, stop <-
 	// don't care whether block is nil
 	results <- block
 	return err
+}
+
+func (sb *backend) GetPrivateKey() *ecdsa.PrivateKey {
+	return nil
 }
 
 // Seal generates a new block for the given input block with the local miner's

@@ -7,6 +7,7 @@ package spow
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"math"
 	"math/big"
 	"math/rand"
@@ -130,6 +131,10 @@ func (engine *SpowEngine) Seal(reader consensus.ChainReader, block *types.Block,
 
 	return nil
 
+}
+
+func (engine *SpowEngine) GetPrivateKey() *ecdsa.PrivateKey {
+	return nil
 }
 
 /*use arrays and random read value*/
