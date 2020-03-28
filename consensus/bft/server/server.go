@@ -154,7 +154,7 @@ func (s *server) Broadcast(verSet bft.VerifierSet, payload []byte) error {
 	}
 	go s.bftEventMux.Post(msg)
 	s.log.Info("s2: post payload to inform self")
-	s.log.Info("[TEST] Gossip in Broadcast")
+	s.log.Debug("[TEST] Gossip in Broadcast")
 	return nil
 }
 
@@ -205,13 +205,13 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 			// fmt.Printf("[TEST] Address %s", ver.Address())
 		}
 	}
-	s.log.Error("[TEST] s.broadcaster != nil: %t && len(targets): %d", s.broadcaster != nil, len(targets))
+	s.log.Debug("[TEST] s.broadcaster != nil: %t && len(targets): %d", s.broadcaster != nil, len(targets))
 
 	// send out message to all targets
 	if s.broadcaster != nil && len(targets) > 0 {
-		s.log.Error("[TEST] Gossip run here")
+		s.log.Debug("[TEST] Gossip run here")
 		peers := s.broadcaster.FindPeers(targets)
-		s.log.Error("[TEST] broadcaster find peers len %d", len(peers))
+		s.log.Debug("[TEST] broadcaster find peers len %d", len(peers))
 		for addr, p := range peers {
 			ms, ok := s.recentMessages.Get(addr)
 			common.Trace2()
@@ -237,12 +237,12 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 			// common.Trace2()
 			s.recentMessages.Add(addr, m)
 			// common.Trace2()
-			s.log.Error("[TEST] send payload to peer %s", addr)
+			s.log.Debug("[TEST] send payload to peer %s", addr)
 			go p.Send(bftMsg, payload)
 
 		}
 	}
-	s.log.Error("[TEST] Gossip sucessfully")
+	s.log.Debug("[TEST] Gossip sucessfully")
 	return nil
 }
 

@@ -99,7 +99,7 @@ func (s *server) Stop() error {
 	}
 	s.log.Info("BFT engine is stopping engine core")
 	s.coreStarted = false
-	s.log.Info("coreStarted == false? -> %t", s.coreStarted == false)
+	s.log.Debug("coreStarted == false? -> %t", s.coreStarted == false)
 	return nil
 }
 

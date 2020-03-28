@@ -138,7 +138,7 @@ func (c *core) sendNextRoundChange() {
 
 func (c *core) handleRoundChange(msg *message, src bft.Verifier) error {
 	// Docode->
-	c.log.Warn("[TEST] handle round change")
+	c.log.Debug("[TEST] handle round change")
 	var rc *bft.Subject
 	if err := msg.Decode(&rc); err != nil {
 		return err
@@ -151,7 +151,7 @@ func (c *core) handleRoundChange(msg *message, src bft.Verifier) error {
 		c.log.Warn("failed to add round change msg %v from %v with err %s", msg, src, err)
 		return err
 	}
-	c.log.Info("[TEST] core status waitingForRoundChange %t, currentView %+v, msgView %+v, roundChange number %d", c.waitingForRoundChange, cv, roundView, num)
+	c.log.Debug("[TEST] core status waitingForRoundChange %t, currentView %+v, msgView %+v, roundChange number %d", c.waitingForRoundChange, cv, roundView, num)
 	// Once we received f+1 ROUND CHANGE messages, those messages form a weak certificate.
 	// If our round number is smaller than the certificate's round number, we would
 	// try to catch up the round number.

@@ -54,7 +54,7 @@ type core struct {
 
 // sendCommit send commits
 func (c *core) sendCommit() {
-	c.log.Warn("bft-3 commit")
+	c.log.Debug("bft-3 commit")
 	// get the subject
 	subject := c.current.Subject()
 	// broadcast subject
@@ -72,7 +72,7 @@ func (c *core) sendOldCommit(view *bft.View, digest common.Hash) {
 
 func (c *core) handleCommit(msg *message, src bft.Verifier) error {
 	// Decode->checkMessage->verifyCommit->acceptCommit->check state and commit
-	c.log.Warn("bft-3 handleCommit msg")
+	c.log.Debug("bft-3 handleCommit msg")
 	var commit *bft.Subject
 	err := msg.Decode(&commit)
 	if err != nil {
