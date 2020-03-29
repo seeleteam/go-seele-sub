@@ -68,6 +68,12 @@ var (
 
 	// ErrNotSupported is returned when unsupported method invoked.
 	ErrNotSupported = errors.New("not supported function")
+
+	// subchain root account size
+	ErrInvalidRootAccountSize = errors.New("subchain rootAccount size is invalid")
+
+	// subchain root account size
+	ErrShardNum = errors.New("subchain shard numner does not match mintAccount in RootAccounts")
 )
 
 // Blockchain represents the blockchain with a genesis block. The Blockchain manages
