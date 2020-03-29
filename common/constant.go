@@ -25,6 +25,7 @@ const (
 	SeeleNodeVersion string = "v1.0.0"
 
 	// ShardCount represents the total number of shards.
+	// for subchain, only 1 shard
 	ShardCount = 4
 
 	// only one shard in subchain
@@ -90,6 +91,9 @@ const (
 
 	// BFT data folder
 	BFTSuchainDataFolder = "bft_suchain_data"
+
+	// subchain root account size
+	SubChainRootAccount = 3
 
 	// EVMStackLimit increase evm stack limit to 8192
 	EVMStackLimit = 8192

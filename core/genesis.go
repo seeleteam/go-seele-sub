@@ -372,32 +372,67 @@ func (genesis *Genesis) GetRootAccounts() []common.Address {
 	return genesis.info.Rootaccounts
 }
 
+// func getStateDB(info *GenesisInfo) *state.Statedb {
+// 	statedb := state.NewEmptyStatedb(nil)
+
+// 	if info.ShardNumber == 1 {
+// 		info.Masteraccount, _ = common.HexToAddress("0xd9dd0a837a3eb6f6a605a5929555b36ced68fdd1")
+// 		info.Balance = big.NewInt(17500000000000000)
+// 		statedb.CreateAccount(info.Masteraccount)
+// 		statedb.SetBalance(info.Masteraccount, info.Balance)
+// 		// create fee account, shard 1 only
+// 		statedb.CreateAccount(common.SubchainFeeAccount)
+// 		statedb.SetBalance(common.SubchainFeeAccount, big.NewInt(0))
+// 	} else if info.ShardNumber == 2 {
+// 		info.Masteraccount, _ = common.HexToAddress("0xc71265f11acdacffe270c4f45dceff31747b6ac1")
+// 		info.Balance = big.NewInt(17500000000000000)
+// 		statedb.CreateAccount(info.Masteraccount)
+// 		statedb.SetBalance(info.Masteraccount, info.Balance)
+// 	} else if info.ShardNumber == 3 {
+// 		info.Masteraccount, _ = common.HexToAddress("0x509bb3c2285a542e96d3500e1d04f478be12faa1")
+// 		info.Balance = big.NewInt(17500000000000000)
+// 		statedb.CreateAccount(info.Masteraccount)
+// 		statedb.SetBalance(info.Masteraccount, info.Balance)
+// 	} else if info.ShardNumber == 4 {
+// 		info.Masteraccount, _ = common.HexToAddress("0xc6c5c85c585ee33aae502b874afe6cbc3727ebf1")
+// 		info.Balance = big.NewInt(17500000000000000)
+// 		statedb.CreateAccount(info.Masteraccount)
+// 		statedb.SetBalance(info.Masteraccount, info.Balance)
+// 	} else {
+// 		info.Masteraccount, _ = common.HexToAddress("0x0000000000000000000000000000000000000000")
+// 		info.Balance = big.NewInt(0)
+// 	}
+
+// 	for addr, amount := range info.Accounts {
+// 		if !common.IsShardEnabled() || addr.Shard() == info.ShardNumber {
+// 			statedb.CreateAccount(addr)
+// 			statedb.SetBalance(addr, amount)
+// 		}
+// 	}
+
+// 	return statedb
+// }
+
+// subchain genesis statedb
 func getStateDB(info *GenesisInfo) *state.Statedb {
 	statedb := state.NewEmptyStatedb(nil)
 
-	if info.ShardNumber == 1 {
-		info.Masteraccount, _ = common.HexToAddress("0xd9dd0a837a3eb6f6a605a5929555b36ced68fdd1")
-		info.Balance = big.NewInt(17500000000000000)
+	// first check the size of master account
+	if len(info.Rootaccounts) != common.SubChainRootAccount {
+		fmt.Println(ErrInvalidRootAccountSize, "expect", common.SubChainRootAccount, "but get", len(info.Rootaccounts))
+		return nil
+	}
+	if info.Rootaccounts[0].Shard() != info.ShardNumber {
+		fmt.Println(ErrShardNum)
+		return nil
+	}
+	if info.ShardNumber <= common.ShardCount && info.ShardNumber >= 1 {
+		info.Masteraccount = info.Rootaccounts[0]
+		info.Balance = info.Supply
 		statedb.CreateAccount(info.Masteraccount)
 		statedb.SetBalance(info.Masteraccount, info.Balance)
-		// create fee account, shard 1 only
 		statedb.CreateAccount(common.SubchainFeeAccount)
 		statedb.SetBalance(common.SubchainFeeAccount, big.NewInt(0))
-	} else if info.ShardNumber == 2 {
-		info.Masteraccount, _ = common.HexToAddress("0xc71265f11acdacffe270c4f45dceff31747b6ac1")
-		info.Balance = big.NewInt(17500000000000000)
-		statedb.CreateAccount(info.Masteraccount)
-		statedb.SetBalance(info.Masteraccount, info.Balance)
-	} else if info.ShardNumber == 3 {
-		info.Masteraccount, _ = common.HexToAddress("0x509bb3c2285a542e96d3500e1d04f478be12faa1")
-		info.Balance = big.NewInt(17500000000000000)
-		statedb.CreateAccount(info.Masteraccount)
-		statedb.SetBalance(info.Masteraccount, info.Balance)
-	} else if info.ShardNumber == 4 {
-		info.Masteraccount, _ = common.HexToAddress("0xc6c5c85c585ee33aae502b874afe6cbc3727ebf1")
-		info.Balance = big.NewInt(17500000000000000)
-		statedb.CreateAccount(info.Masteraccount)
-		statedb.SetBalance(info.Masteraccount, info.Balance)
 	} else {
 		info.Masteraccount, _ = common.HexToAddress("0x0000000000000000000000000000000000000000")
 		info.Balance = big.NewInt(0)
