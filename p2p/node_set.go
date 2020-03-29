@@ -53,6 +53,7 @@ func (set *nodeSet) getSelfShardNodeNum() int {
 	for _, item := range set.nodeMap {
 		if item.node.Shard == common.LocalShardNumber && item.bConnected {
 			count++
+			// fmt.Printf("[TEST] connected node:%s IP: %s\n", item.node.ID, item.node.IP)
 		}
 	}
 	return count
@@ -100,7 +101,7 @@ func (set *nodeSet) tryAdd(p *discovery.Node) {
 func (set *nodeSet) delete(p *discovery.Node) {
 	set.lock.Lock()
 	defer set.lock.Unlock()
-	if set.nodeMap[p.ID] !=nil {
+	if set.nodeMap[p.ID] != nil {
 		delete(set.nodeMap, p.ID)
 		if _, ok := set.ipSet[p.Shard][p.IP.String()]; ok {
 			set.ipSet[p.Shard][p.IP.String()]-- //update ip count

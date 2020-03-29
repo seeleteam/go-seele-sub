@@ -18,7 +18,7 @@ func (c *core) handleRequest(request *bft.Request) error {
 		c.log.Warn("unexpected request, err %s, height %d, ")
 		return err
 	}
-	c.log.Debug("handleRequest height %d, hash %s", request.Proposal.Height(), request.Proposal.Hash())
+	c.log.Info("handleRequest height %d, hash %s", request.Proposal.Height(), request.Proposal.Hash())
 	c.current.pendingRequest = request
 	if c.state == StateAcceptRequest { // state is ready
 		c.sendPreprepare(request)

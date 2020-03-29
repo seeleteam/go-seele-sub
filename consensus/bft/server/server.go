@@ -2,7 +2,6 @@ package server
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	"sync"
 	"time"
 
@@ -147,17 +146,55 @@ func (s *server) EventMux() *event.TypeMux {
 func (s *server) Broadcast(verSet bft.VerifierSet, payload []byte) error {
 	// fan out
 	s.Gossip(verSet, payload)
+	s.log.Info("s1: gossip payload to verifier")
+
 	// inform self with event message
 	msg := bft.MessageEvent{
 		Payload: payload,
 	}
 	go s.bftEventMux.Post(msg)
-	// fmt.Println("Post in Broadcast")
+	s.log.Info("s2: post payload to inform self")
+	s.log.Debug("[TEST] Gossip in Broadcast")
 	return nil
 }
 
-// Gossip sends a message to all Verifiers (exclude self)
+// // Gossip sends a message to all Verifiers (exclude self)
+// func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
+// 	hash := crypto.HashBytes(payload)
+// 	s.knownMessages.Add(hash, true)
+
+// 	targets := make(map[common.Address]bool)
+// 	for _, ver := range verSet.List() {
+// 		if ver.Address() != s.Address() { // exclude self
+// 			targets[ver.Address()] = true
+// 		}
+// 	}
+
+// 	// send out message to all targets
+// 	if s.broadcaster != nil && len(targets) > 0 {
+// 		peers := s.broadcaster.FindPeers(targets)
+// 		for addr, p := range peers {
+// 			ms, ok := s.recentMessages.Get(addr)
+// 			var m *lru.ARCCache
+// 			if ok {
+// 				m, _ := ms.(*lru.ARCCache)
+// 				if _, alreadyHave := m.Get(hash); alreadyHave {
+// 					continue
+// 				}
+// 			} else { // not ok, cache it
+// 				m, _ = lru.NewARC(inmemoryMessages)
+// 			}
+// 			m.Add(hash, true)
+// 			s.recentMessages.Add(addr, m)
+// 			go p.Send(bftMsg, payload)
+
+// 		}
+// 	}
+// 	return nil
+// }
+
 func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
+	common.Trace2()
 	hash := crypto.HashBytes(payload)
 	s.knownMessages.Add(hash, true)
 
@@ -165,29 +202,47 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 	for _, ver := range verSet.List() {
 		if ver.Address() != s.Address() { // exclude self
 			targets[ver.Address()] = true
+			// fmt.Printf("[TEST] Address %s", ver.Address())
 		}
 	}
+	s.log.Debug("[TEST] s.broadcaster != nil: %t && len(targets): %d", s.broadcaster != nil, len(targets))
 
 	// send out message to all targets
 	if s.broadcaster != nil && len(targets) > 0 {
+		s.log.Debug("[TEST] Gossip run here")
 		peers := s.broadcaster.FindPeers(targets)
+		s.log.Debug("[TEST] broadcaster find peers len %d", len(peers))
 		for addr, p := range peers {
 			ms, ok := s.recentMessages.Get(addr)
+			common.Trace2()
 			var m *lru.ARCCache
+
 			if ok {
-				m, _ := ms.(*lru.ARCCache)
+				// var m *lru.ARCCache
+
+				m, _ = ms.(*lru.ARCCache)
 				if _, alreadyHave := m.Get(hash); alreadyHave {
+					common.Trace2()
+					s.log.Info("recent message have the msg, continue")
 					continue
 				}
 			} else { // not ok, cache it
+				s.log.Info("recent message doesn't  have the msg, create a new ARCCache")
+				common.Trace2()
+				// var m *lru.ARCCache
 				m, _ = lru.NewARC(inmemoryMessages)
 			}
+			// // fmt.Printf("hash size %d, ARCcache size %d\n", len(hash), inmemoryMessages)
 			m.Add(hash, true)
+			// common.Trace2()
 			s.recentMessages.Add(addr, m)
+			// common.Trace2()
+			s.log.Debug("[TEST] send payload to peer %s", addr)
 			go p.Send(bftMsg, payload)
 
 		}
 	}
+	s.log.Debug("[TEST] Gossip sucessfully")
 	return nil
 }
 
@@ -223,7 +278,6 @@ func (s *server) Commit(proposal bft.Proposal, seals [][]byte) error {
 
 	if s.proposedBlockHash == block.Hash() {
 		s.commitCh <- block
-		fmt.Println("sending a block to commit channel")
 		s.log.Info("server commitCh enchannel with block %+v\n", block)
 		return nil
 	} else {
@@ -234,9 +288,9 @@ func (s *server) Commit(proposal bft.Proposal, seals [][]byte) error {
 	// -- if success, the ChainHeadEvent event will be broadcasted, try to build
 	//    the next block and the previous Seal() will be stopped.
 	// -- otherwise, a error will be returned and a round change event will be fired.
-	if s.broadcaster != nil {
-		s.broadcaster.Enqueue(engineTypeID, block)
-	}
+	// if s.broadcaster != nil {
+	// 	s.broadcaster.Enqueue(engineTypeID, block)
+	// }
 	return nil
 }
 

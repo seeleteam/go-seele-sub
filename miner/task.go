@@ -125,7 +125,7 @@ func (task *Task) applyTransactionsAndDebts(seele SeeleBackend, statedb *state.S
 			log.Error("failed to prepare deposit or exit tx into secondwitness")
 		}
 		task.header.SecondWitness = extraSecondWitnessInfo
-		log.Info("apply new verifiers into witness, %+v", task.header.SecondWitness)
+		log.Debug("apply new verifiers info witness, %+v", task.header.SecondWitness)
 	}
 
 	// exit
@@ -374,7 +374,7 @@ func (task *Task) chooseTransactions(seele SeeleBackend, statedb *state.Statedb,
 
 	for size > 0 {
 		txs, txsSize := seele.TxPool().GetProcessableTransactions(size)
-		log.Error("tx size %d", len(txs))
+		log.Info("tx size %d", len(txs))
 		if len(txs) == 0 {
 			break
 		}

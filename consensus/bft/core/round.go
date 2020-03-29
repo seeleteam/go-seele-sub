@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"math/big"
 	"sync"
 
@@ -127,7 +126,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 		Code: msgRoundChange,
 		Msg:  payload,
 	})
-	fmt.Println("roundChange->broadcast->Post")
+	c.log.Warn("sendRoundChange and broadcast to peer!\n\n")
 
 }
 
@@ -139,6 +138,7 @@ func (c *core) sendNextRoundChange() {
 
 func (c *core) handleRoundChange(msg *message, src bft.Verifier) error {
 	// Docode->
+	c.log.Debug("[TEST] handle round change")
 	var rc *bft.Subject
 	if err := msg.Decode(&rc); err != nil {
 		return err
@@ -151,21 +151,25 @@ func (c *core) handleRoundChange(msg *message, src bft.Verifier) error {
 		c.log.Warn("failed to add round change msg %v from %v with err %s", msg, src, err)
 		return err
 	}
-
+	c.log.Debug("[TEST] core status waitingForRoundChange %t, currentView %+v, msgView %+v, roundChange number %d", c.waitingForRoundChange, cv, roundView, num)
 	// Once we received f+1 ROUND CHANGE messages, those messages form a weak certificate.
 	// If our round number is smaller than the certificate's round number, we would
 	// try to catch up the round number.
 	if c.waitingForRoundChange && num == int(c.verSet.F()+1) {
 		if cv.Round.Cmp(roundView.Round) < 0 {
 			c.sendRoundChange(roundView.Round)
+			c.log.Warn("s1: receive F+1 round change message, catch up round")
 		}
 		return nil
 	} else if num == int(2*c.verSet.F()+1) && (c.waitingForRoundChange || cv.Round.Cmp(roundView.Round) < 0) {
 		// We've received 2f+1 ROUND CHANGE messages, start a new round immediately.
 		c.startNewRound(roundView.Round)
+		c.log.Warn("s2: receive 2F+1 round change message, start a new round")
 		return nil
 	} else if cv.Round.Cmp(roundView.Round) < 0 {
 		// Only gossip the message with current round to other verifiers.
+		c.log.Warn("s3: handle msg only need to gossip msg to verifiers")
+
 		return errMsgIgnored
 	}
 	return nil

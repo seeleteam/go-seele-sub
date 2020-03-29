@@ -429,7 +429,7 @@ func (srv *Server) doSelectLocalNodeToConnect() {
 		node := selectNodeSet[i]
 		if node != nil {
 			if node.Shard == common.LocalShardNumber {
-				srv.log.Info("p2p.server doSelectLocalNodeToConnect. Node=%s ,%d", selectNodeSet[i].IP.String(), selectNodeSet[i].UDPPort)
+				srv.log.Debug("p2p.server doSelectLocalNodeToConnect. Node=%s ,%d", selectNodeSet[i].IP.String(), selectNodeSet[i].UDPPort)
 				srv.connectNode(selectNodeSet[i])
 			}
 		}

@@ -165,7 +165,7 @@ out:
 	for {
 		select {
 		case result := <-s.commitCh:
-			s.log.Info("commit channel to result %+v", result)
+			s.log.Info("[SealResult] commit channel to result %+v", result)
 			// for {
 			if result == nil {
 				s.log.Warn("commitCh is empty")
@@ -177,7 +177,7 @@ out:
 			// return the result. Otherwise, keep waiting the next hash.
 			// MORE TEST Here (ensure logic is right here)
 			if block.Hash() == result.Hash() {
-				s.log.Info("get result back %s height %d", block.Hash(), block.Height())
+				s.log.Info("[SealResult] get result back %s height %d", block.Hash(), block.Height())
 				return result, nil
 			}
 			// }

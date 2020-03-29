@@ -161,7 +161,7 @@ func NewSeeleService(ctx context.Context, conf *node.Config, log *log.SeeleLog, 
 		return nil, err
 	}
 
-	if s.seeleProtocol, err = NewSeeleProtocol(s, log); err != nil {
+	if s.seeleProtocol, err = NewSeeleProtocol(s, log, engine); err != nil {
 		s.Stop()
 		log.Error("failed to create seeleProtocol in NewSeeleService, %s", err)
 		return nil, err

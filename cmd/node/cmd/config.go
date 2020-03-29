@@ -86,7 +86,7 @@ func LoadConfigFromFile(configFile string, accounts string) (*node.Config, error
 			return config, err
 		}
 	}
-
+	config.P2PConfig.PrivateKey = config.SeeleConfig.CoinbasePrivateKey
 	config.SeeleConfig.TxConf = *core.DefaultTxPoolConfig()
 	config.SeeleConfig.GenesisConfig = cmdConfig.GenesisConfig
 	comm.LogConfiguration.PrintLog = config.LogConfig.PrintLog
