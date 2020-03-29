@@ -404,6 +404,9 @@ func (api *PublicSubchainAPI) GetUpdatedAccountInfo(height uint64) (map[string]i
 	var curStatedb *state.Statedb
 	var prevStatedb *state.Statedb
 	var err error
+	if height < common.RelayInterval {
+		return nil, errors.New("Height too low")
+	}
 	prevHeight := height - common.RelayInterval
 
 	if curStatedb, err = api.GetStatedbByHeight(height); err != nil {
@@ -441,6 +444,44 @@ func (api *PublicSubchainAPI) GetUpdatedAccountInfo(height uint64) (map[string]i
 	info := map[string]interface{}{
 		"updated accounts": updatedAccountsBytes,
 		"balances":         balancesBytes,
+	}
+	return info, nil
+}
+
+func (api *PublicSubchainAPI) GetFee(height uint64) (map[string]interface{}, error) {
+	var curStatedb *state.Statedb
+	var prevStatedb *state.Statedb
+	var err error
+	if height < common.RelayInterval || height%common.RelayInterval != 0 {
+		return nil, errors.New("Must be a relay block")
+	}
+	prevHeight := height - common.RelayInterval
+
+	if curStatedb, err = api.GetStatedbByHeight(height); err != nil {
+		return nil, err
+	}
+
+	if prevStatedb, err = api.GetStatedbByHeight(prevHeight); err != nil {
+		return nil, err
+	}
+	account := common.SubchainFeeAccount
+	curBalance := curStatedb.GetBalance(account)
+	prevBalance := prevStatedb.GetBalance(account)
+	fee := big.NewInt(int64(0)).Sub(curBalance, prevBalance)
+
+	block, err := api.s.GetBlock(common.EmptyHash, int64(height)) // return subblock
+	if err != nil {
+		return nil, err
+	}
+	bftExt, err := types.ExtractBftExtra(block.Header)
+	if err != nil {
+		return nil, err
+	}
+	verNum := big.NewInt(int64(len(bftExt.Verifiers)))
+	fee.Div(fee, verNum)
+	info := map[string]interface{}{
+		"fee":    fee,
+		"verNum": verNum,
 	}
 	return info, nil
 }

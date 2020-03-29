@@ -293,6 +293,12 @@ func AddCommands(app *cli.App, isFullNode bool) {
 				Action: rpcAction("subchain", "getUpdatedAccountInfo"),
 			},
 			{
+				Name:   "getfee",
+				Usage:  "get fee income of each verifier",
+				Flags:  rpcFlags(heightFlag),
+				Action: rpcAction("subchain", "getFee"),
+			},
+			{
 				Name:   "sendtx",
 				Usage:  "send subchain transaction to node",
 				Flags:  rpcFlags(fromFlag, toFlag, amountFlag, priceFlag, gasLimitFlag, payloadFlag, nonceFlag, heightFlag),
