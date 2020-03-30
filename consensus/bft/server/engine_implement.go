@@ -309,7 +309,6 @@ func (s *server) verifyCommittedSeals(chain consensus.ChainReader, header *types
 	s.log.Debug("%d verifiers", snap.VerSet.Size())
 	// 2. The length of validSeal should be larger than number of faulty node + 1
 	// if validSealCount <= 2*snap.VerSet.F() { // FIXME <= or <??
-	s.log.Info("Tally: validSealCount: %d require: %d", validSealCount, 2*snap.VerSet.F())
 
 	if validSealCount < 2*snap.VerSet.F() {
 		s.log.Debug("validSealCount ", validSealCount, "require ", 2*snap.VerSet.F())

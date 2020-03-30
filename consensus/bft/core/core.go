@@ -242,7 +242,7 @@ func (c *core) startNewRound(round *big.Int) {
 			c.sendPreprepare(c.current.pendingRequest)
 		}
 	}
-	// c.newRoundChangeTimer()
+	c.newRoundChangeTimer()
 	c.log.Info("new_round %d, new_seq %d, new_proposer %v, verSet %v, size %d, isProposer %t", newView.Round, newView.Sequence, c.verSet.GetProposer(), c.verSet.List(), c.verSet.Size(), c.isProposer())
 }
 
