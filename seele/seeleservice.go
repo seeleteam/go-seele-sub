@@ -258,7 +258,7 @@ func (s *SeeleService) initGenesisAndChain(serviceContext *ServiceContext, conf 
 	}
 
 	recoveryPointFile := filepath.Join(serviceContext.DataDir, BlockChainRecoveryPointFile)
-	if s.chain, err = core.NewBlockchain(bcStore, s.accountStateDB, recoveryPointFile, s.miner.GetEngine(), s.debtVerifier, startHeight); err != nil {
+	if s.chain, err = core.NewBlockchain(bcStore, s.accountStateDB, s.accountIndexDB, s.indexAccountDB, recoveryPointFile, s.miner.GetEngine(), s.debtVerifier, startHeight); err != nil {
 		s.Stop()
 		s.log.Error("failed to init chain in NewSeeleService. %s", err)
 		return err

@@ -100,6 +100,9 @@ func (task *Task) applyTransactionsAndDebts(seele SeeleBackend, statedb *state.S
 
 		// update recentTxHashStem
 		recentTxHashStem, err := task.getRecentTxHashStem(seele, log)
+		if err != nil {
+			return err
+		}
 
 		// sign the block
 		blockInfo := []interface{}{

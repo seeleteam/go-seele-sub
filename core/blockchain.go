@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/common/errors"
 	"github.com/seeleteam/go-seele/consensus"
@@ -82,6 +83,8 @@ var (
 type Blockchain struct {
 	bcStore        store.BlockchainStore
 	accountStateDB database.Database
+	accountIndexDB database.Database
+	indexAccountDB database.Database
 	engine         consensus.Engine
 	genesisBlock   *types.Block
 	lock           sync.RWMutex // lock for update blockchain info. for example write block
@@ -97,11 +100,13 @@ type Blockchain struct {
 }
 
 // NewBlockchain returns an initialized blockchain with the given store and account state DB.
-func NewBlockchain(bcStore store.BlockchainStore, accountStateDB database.Database, recoveryPointFile string, engine consensus.Engine,
+func NewBlockchain(bcStore store.BlockchainStore, accountStateDB database.Database, accountIndexDB database.Database, indexAccountDB database.Database, recoveryPointFile string, engine consensus.Engine,
 	verifier types.DebtVerifier, startHeight int) (*Blockchain, error) {
 	bc := &Blockchain{
 		bcStore:        bcStore,
 		accountStateDB: accountStateDB,
+		accountIndexDB: accountIndexDB,
+		indexAccountDB: indexAccountDB,
 		engine:         engine,
 		log:            log.GetLogger("blockchain"),
 		debtVerifier:   verifier,
@@ -316,7 +321,7 @@ func (bc *Blockchain) doWriteBlock(block *types.Block, pool *Pool) error {
 	// Process the txs in the block and check the state root hash.
 	var blockStatedb *state.Statedb
 	var receipts []*types.Receipt
-	if blockStatedb, receipts, err = bc.applyTxs(block, preHeader.StateHash); err != nil {
+	if blockStatedb, receipts, err = bc.applyTxs(block, preHeader.StateHash, preHeader); err != nil {
 		return errors.NewStackedError(err, "failed to apply block txs")
 	}
 	auditor.Audit("succeed to apply %v txs and %v debts", len(block.Transactions), len(block.Debts))
@@ -511,7 +516,7 @@ func (bc *Blockchain) GetStore() store.BlockchainStore {
 
 // applyTxs processes the txs in the specified block and returns the new state DB of the block.
 // This method supposes the specified block is validated.
-func (bc *Blockchain) applyTxs(block *types.Block, root common.Hash) (*state.Statedb, []*types.Receipt, error) {
+func (bc *Blockchain) applyTxs(block *types.Block, root common.Hash, prevHeader *types.BlockHeader) (*state.Statedb, []*types.Receipt, error) {
 	auditor := log.NewAuditor(bc.log)
 
 	statedb, err := state.NewStatedb(root, bc.accountStateDB)
@@ -538,7 +543,7 @@ func (bc *Blockchain) applyTxs(block *types.Block, root common.Hash) (*state.Sta
 	auditor.Audit("succeed to validate %v debts", len(block.Debts))
 
 	// apply txs
-	receipts, err := bc.applyRewardAndRegularTxs(statedb, block.Transactions[0], block.Transactions[1:], block.Header)
+	receipts, err := bc.applyRewardAndRegularTxs(statedb, block.Transactions[0], block.Transactions[1:], block.Header, prevHeader)
 	if err != nil {
 		return nil, nil, errors.NewStackedErrorf(err, "failed to apply reward and regular txs")
 	}
@@ -547,7 +552,7 @@ func (bc *Blockchain) applyTxs(block *types.Block, root common.Hash) (*state.Sta
 	return statedb, receipts, nil
 }
 
-func (bc *Blockchain) applyRewardAndRegularTxs(statedb *state.Statedb, rewardTx *types.Transaction, regularTxs []*types.Transaction, blockHeader *types.BlockHeader) ([]*types.Receipt, error) {
+func (bc *Blockchain) applyRewardAndRegularTxs(statedb *state.Statedb, rewardTx *types.Transaction, regularTxs []*types.Transaction, blockHeader *types.BlockHeader, prevHeader *types.BlockHeader) ([]*types.Receipt, error) {
 	auditor := log.NewAuditor(bc.log)
 
 	receipts := make([]*types.Receipt, len(regularTxs)+1)
@@ -587,7 +592,49 @@ func (bc *Blockchain) applyRewardAndRegularTxs(statedb *state.Statedb, rewardTx 
 	}
 	auditor.Audit("succeed to apply %v txs", len(regularTxs))
 
+	if blockHeader.Consensus == types.BftConsensus {
+		bc.verifyStemStructureAndUpdateDatabase(regularTxs, prevHeader)
+	}
 	return receipts, nil
+}
+
+// TODO: optimize the database
+func (bc *Blockchain) verifyStemStructureAndUpdateDatabase(regularTxs []*types.Transaction, prevHeader *types.BlockHeader) error {
+
+	swExtra, err := types.ExtractSecondWitnessInfo(prevHeader)
+	if err != nil {
+		return err
+	}
+	accountCount := swExtra.AccountCount
+
+	for _, tx := range regularTxs {
+		for i := 0; i < 2; i++ {
+			var account common.Address
+			if i == 0 {
+				account = tx.Data.From
+			} else {
+				account = tx.Data.To
+			}
+
+			//  update accountIndexDB
+			if isExisted, err := bc.accountIndexDB.Has(account.Bytes()); err != nil {
+				return err
+			} else if !isExisted {
+				accountCount++
+				index := uint(accountCount - 1)
+				indexBytes, _ := rlp.EncodeToBytes(index)
+				// log.Error("accountCount: %d, account: %v, index: %d", task.accountCount, account.Hex(), index)
+				if err = bc.accountIndexDB.Put(account.Bytes(), indexBytes); err != nil {
+					return err
+				}
+
+				if err = bc.indexAccountDB.Put(indexBytes, account.Bytes()); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // ApplyTransaction applies a transaction, changes corresponding statedb and generates its receipt
