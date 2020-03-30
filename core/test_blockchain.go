@@ -28,16 +28,18 @@ func NewTestBlockchain() *Blockchain {
 }
 
 func NewTestBlockchainWithVerifier(verifier types.DebtVerifier) *Blockchain {
-	db, _ := leveldb.NewTestDatabase()
+	db1, _ := leveldb.NewTestDatabase()
+	db2, _ := leveldb.NewTestDatabase()
+	db3, _ := leveldb.NewTestDatabase()
 
-	bcStore := store.NewCachedStore(store.NewBlockchainDatabase(db))
+	bcStore := store.NewCachedStore(store.NewBlockchainDatabase(db1))
 
 	genesis := newTestGenesis()
-	if err := genesis.InitializeAndValidate(bcStore, db); err != nil {
+	if err := genesis.InitializeAndValidate(bcStore, db1); err != nil {
 		panic(err)
 	}
 
-	bc, err := NewBlockchain(bcStore, db, "", pow.NewEngine(1), verifier, -1)
+	bc, err := NewBlockchain(bcStore, db1, db2, db3, "", pow.NewEngine(1), verifier, -1)
 	if err != nil {
 		panic(err)
 	}
