@@ -486,6 +486,11 @@ func (api *PublicSubchainAPI) GetFee(height uint64) (map[string]interface{}, err
 	return info, nil
 }
 
+// get block relay interval
+func (api *PublicSubchainAPI) GetRelayInterval() uint64 {
+	return common.RelayInterval
+}
+
 func (api *PublicSubchainAPI) GetStatedbByHeight(height uint64) (*state.Statedb, error) {
 	// current statedb
 	blockHash, err := api.s.ChainBackend().GetStore().GetBlockHash(height)
