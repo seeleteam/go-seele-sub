@@ -1,5 +1,5 @@
-# Go-Seele-Sub
-Seele subchain (beta version) was officially released on March 29, 2020. For more details, please see [Seele Stem subchain protocol](https://medium.com/@SeeleTech/seele-stem-subchain-protocol-b5eceb02aaa3). So far, Practical Byzantine Fault Tolerance (PBFT) is used as block consensus protocol.
+# Go-Seele-Sub (Stem)
+Seele subchain (beta version) was officially released on March 29, 2020. Seele Stem aims to provide a full set of useful features while preserving the safety of the funds in the child chain. It supports account-based child chains, safe and flexible deposit/exit operations, fast access to the account balance in the Stem smart contract, customizable state finality of the child chain. The Seele Stem subchain aims at increasing Seele mainnet's capacity and manifesting diversified and abundant applications. For more details, please see [Seele Stem subchain protocol](https://medium.com/@SeeleTech/seele-stem-subchain-protocol-b5eceb02aaa3). So far, Practical Byzantine Fault Tolerance (PBFT) is used as consensus protocol.
 
 # Download (without building)
 If you want to directly run the node and use client without setting up the compiling enviroment and building the executable files, you can choose right version to download and run:
