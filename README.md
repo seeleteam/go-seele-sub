@@ -53,7 +53,7 @@ buildall.bat
   3. For running a subchain node, please refer to [Subchain Start Guide](https://seeletech.gitbook.io/wiki/developer/intro/subchain_start)
   
   4. User controller middleware to operate subchain: 
-        - (Operations: Relay/Deposit/Challenge/Exit ), please refer to [Controller User Guide](https://seeletech.gitbook.io/wiki/developer/intro/seele-anchor-cli/0-user) 
+        - (Operations: Relay/Deposit/Challenge/Exit/...), please refer to [Controller User Guide](https://seeletech.gitbook.io/wiki/developer/intro/seele-anchor-cli/0-user) 
         - [Controller Test Guide](https://seeletech.gitbook.io/wiki/developer/intro/seele-anchor-cli/1-test) 
         -  [Controller Configuration](https://seeletech.gitbook.io/wiki/developer/intro/seele-anchor-cli/2-conf) 
   
