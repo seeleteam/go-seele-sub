@@ -76,7 +76,7 @@ var (
 	// TransferAmountIntrinsicGas is the intrinsic gas to transfer amount.
 	TransferAmountIntrinsicGas = ethIntrinsicGas(nil)
 
-	SubTransactionIntrinsicGas = uint64(2000000)
+	SubTransactionIntrinsicGas = uint64(30000)
 
 	CrossShardTransactionGas = TransferAmountIntrinsicGas
 

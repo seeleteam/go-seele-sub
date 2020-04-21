@@ -26,7 +26,7 @@ const (
 
 	// ShardCount represents the total number of shards.
 	// for subchain, only 1 shard
-	ShardCount = 4
+	ShardCount = 1
 
 	// only one shard in subchain
 	ShardCountSubchain = 1
