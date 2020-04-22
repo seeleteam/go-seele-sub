@@ -601,6 +601,21 @@ func (bc *Blockchain) applyRewardAndRegularTxs(statedb *state.Statedb, rewardTx 
 // TODO: optimize the database
 func (bc *Blockchain) verifyStemStructureAndUpdateDatabase(regularTxs []*types.Transaction, prevHeader *types.BlockHeader) error {
 
+	storedGenesisHash, err := bc.bcStore.GetBlockHash(uint64(0))
+	if err != nil {
+		return errors.NewStackedErrorf(err, "failed to get block hash by height %v in canonical chain", genesisBlockHeight)
+	}
+
+	storedGenesis, err := bc.bcStore.GetBlock(storedGenesisHash)
+	if err != nil {
+		return errors.NewStackedErrorf(err, "failed to get genesis block by hash %v", storedGenesisHash)
+	}
+
+	genesisExtraData, err := getGenesisExtraVerifyInfo(storedGenesis)
+	if err != nil {
+		return errors.NewStackedError(err, "failed to get extra data in genesis block")
+	}
+
 	swExtra, err := types.ExtractSecondWitnessInfo(prevHeader)
 	if err != nil {
 		return err
@@ -614,6 +629,10 @@ func (bc *Blockchain) verifyStemStructureAndUpdateDatabase(regularTxs []*types.T
 				account = tx.Data.From
 			} else {
 				account = tx.Data.To
+			}
+
+			if account == genesisExtraData.RootAccounts[0] || account == genesisExtraData.RootAccounts[1] || account == genesisExtraData.RootAccounts[2] {
+				continue
 			}
 
 			//  update accountIndexDB

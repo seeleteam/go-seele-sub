@@ -113,13 +113,7 @@ func GenerateSubTx(from *ecdsa.PrivateKey, to common.Address, amount *big.Int, p
 	if to.IsEmpty() {
 		return nil, fmt.Errorf("empty To address: %d", 0)
 	} else {
-		switch to.Type() {
-		case common.AddressTypeExternal:
-			// always ignore the user input gas limit for transfer amount tx.
-			tx, err = types.NewSubTransaction(*fromAddr, to, amount, price, nonce, from, uint64(largestPackHeight))
-		default:
-			return nil, fmt.Errorf("unsupported address type: %d", to.Type())
-		}
+		tx, err = types.NewSubTransaction(*fromAddr, to, amount, price, nonce, from, uint64(largestPackHeight))
 	}
 
 	if err != nil {

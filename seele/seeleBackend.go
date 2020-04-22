@@ -5,6 +5,7 @@ import (
 
 	"github.com/seeleteam/go-seele/api"
 	"github.com/seeleteam/go-seele/common"
+	"github.com/seeleteam/go-seele/core"
 	"github.com/seeleteam/go-seele/core/store"
 	"github.com/seeleteam/go-seele/core/types"
 	"github.com/seeleteam/go-seele/database"
@@ -40,6 +41,8 @@ func (sd *SeeleBackend) ChainBackend() api.Chain { return sd.s.chain }
 func (sd *SeeleBackend) GetAccountIndexDB() database.Database { return sd.s.accountIndexDB }
 
 func (sd *SeeleBackend) GetIndexAccountDB() database.Database { return sd.s.indexAccountDB }
+
+func (sd *SeeleBackend) GenesisInfo() core.GenesisInfo { return sd.s.genesisInfo }
 
 // Log return log pointer
 func (sd *SeeleBackend) Log() *log.SeeleLog { return sd.s.log }

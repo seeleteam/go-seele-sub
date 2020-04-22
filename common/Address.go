@@ -10,7 +10,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"encoding/binary"
-	"fmt"
 	"math/big"
 
 	"github.com/seeleteam/go-seele/common/errors"
@@ -78,16 +77,12 @@ func NewAddress(b []byte) (Address, error) {
 }
 
 // PubKeyToAddress converts a ECC public key to an external address.
-func PubKeyToAddress(pubKey *ecdsa.PublicKey, hashFunc func(interface{}) Hash) Address {
+func PubKeyToAddress(pubKey *ecdsa.PublicKey, hashFunc func(...[]byte) Hash) Address {
 	buf := elliptic.Marshal(pubKey.Curve, pubKey.X, pubKey.Y)
 	hash := hashFunc(buf[1:]).Bytes()
 
 	var addr Address
 	copy(addr[:], hash[12:]) // use last 20 bytes of public key hash
-
-	// set address type in the last 4 bits
-	addr[19] &= 0xF0
-	addr[19] |= byte(AddressTypeExternal)
 
 	return addr
 }
@@ -110,10 +105,6 @@ func PubKeyToSubChainAddress(pubKey *ecdsa.PublicKey, hashFunc func(interface{})
 func (id *Address) Validate() error {
 	if id.IsEmpty() {
 		return nil
-	}
-
-	if addrType := id.Type(); addrType < AddressTypeReserved && (addrType < AddressTypeExternal || addrType > AddressTypeSubChain) {
-		return fmt.Errorf("invalid address type %v, address = %v", addrType, id.Hex())
 	}
 
 	return nil
