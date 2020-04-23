@@ -98,7 +98,7 @@ func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
 	// accept the preprepare message
 	if c.state == StateAcceptRequest {
 		if c.current.IsHashLocked() { // there is a locked proposal
-			c.log.Info("[TEST] hash is locked")
+			c.log.Debug("[TEST] hash is locked")
 			if preprepare.Proposal.Hash() == c.current.GetLockedHash() { // at the same proposal
 				c.acceptPreprepare(preprepare)
 				c.setState(StatePrepared)
@@ -107,7 +107,7 @@ func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
 				c.sendNextRoundChange()
 			}
 		} else { // there is no locked proposal
-			c.log.Info("[TEST] hash is NOT locked")
+			c.log.Debug("[TEST] hash is NOT locked")
 			c.acceptPreprepare(preprepare)
 			c.setState(StatePreprepared)
 			c.sendPrepare()

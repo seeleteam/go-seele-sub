@@ -153,7 +153,7 @@ func (c *core) handleCheckedMsg(msg *message, src bft.Verifier) error {
 }
 
 func (c *core) handleTimeoutMsg() {
-	c.log.Info("[TEST] handleTimeoutMsg")
+	c.log.Debug("[TEST] handleTimeoutMsg")
 	if !c.waitingForRoundChange {
 		maxRound := c.roundChangeSet.MaxRound(c.verSet.F() + 1)
 		if maxRound != nil && maxRound.Cmp(c.current.Round()) > 0 {

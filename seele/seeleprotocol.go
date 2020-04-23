@@ -724,8 +724,8 @@ handler:
 				headList = append(headList, head)
 			}
 
-			p.log.Error("[TEST-peer] sendBlockHeaders with peer %+v", peer)
-			common.PrettyPrint(p)
+			p.log.Debug("[TEST-peer] sendBlockHeaders with peer %+v", peer)
+			// common.PrettyPrint(p)
 
 			go peer.sendBlockHeaders(query.Magic, headList)
 

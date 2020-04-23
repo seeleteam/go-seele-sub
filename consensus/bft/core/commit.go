@@ -89,7 +89,7 @@ func (c *core) handleCommit(msg *message, src bft.Verifier) error {
 	}
 	c.acceptCommit(msg, src)
 
-	fmt.Printf("commits size %d and state %+v (StateCommitted %d)\n", c.current.Commits.Size(), c.state, StateCommitted)
+	c.log.Info("commits size %d and state %+v (StateCommitted %d)\n", c.current.Commits.Size(), c.state, StateCommitted)
 
 	// if we already have enough commit and meanwhile not in committed state-> commit!
 	if c.current.Commits.Size() > 2*c.verSet.F() && c.state.Cmp(StateCommitted) < 0 {
@@ -98,7 +98,7 @@ func (c *core) handleCommit(msg *message, src bft.Verifier) error {
 		c.current.LockHash()
 		c.commit()
 	}
-	c.log.Info("successfully handle commit msg %+v", msg)
+	c.log.Info("successfully handle commit msg")
 	return nil
 }
 

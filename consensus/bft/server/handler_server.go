@@ -34,7 +34,7 @@ func (s *server) Protocal() consensus.Protocol {
 func (s *server) HandleMsg(addr common.Address, message interface{}) (bool, error) {
 	s.coreMu.Lock()
 	defer s.coreMu.Unlock()
-	// s.log.Info("[TEST] HandleMsg-2 get msg")
+	// s.log.Debug("[TEST] HandleMsg-2 get msg")
 	// common.PrettyPrint(message)
 	// msg, ok := message.(core.message)
 	msg, ok := message.(p2p.Message)

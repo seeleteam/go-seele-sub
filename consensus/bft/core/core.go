@@ -84,7 +84,7 @@ func (c *core) checkVerifierSignature(data []byte, sig []byte) (common.Address, 
 
 //broadcast broadcast finalized msg to verifiers in the verset list
 func (c *core) broadcast(msg *message) {
-	c.log.Info("[TEST] broadcast msg to peer")
+	c.log.Debug("[TEST] broadcast msg to peer")
 	// common.PrettyPrint(msg)
 
 	payload, err := c.finalizeMessage(msg) //use msg to prepare commited seal with signature

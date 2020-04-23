@@ -176,7 +176,7 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 	if s.broadcaster != nil && len(targets) > 0 {
 		s.log.Debug("[TEST] Gossip run here")
 		peers := s.broadcaster.FindPeers(targets)
-		s.log.Info("[TEST] broadcaster find peers len %d", len(peers))
+		s.log.Debug("[TEST] broadcaster find peers len %d", len(peers))
 		for addr, p := range peers {
 			ms, ok := s.recentMessages.Get(addr)
 			// common.Trace2()
@@ -202,8 +202,8 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 			// // common.Trace2()
 			s.recentMessages.Add(addr, m)
 			// // common.Trace2()
-			s.log.Info("[TEST-peer] Gossip send payload to peer %+v", p)
-			common.PrettyPrint(p)
+			s.log.Debug("[TEST-peer] Gossip send payload to peer %+v", p)
+			// common.PrettyPrint(p)
 
 			go p.Send(pbftMsgCode, payload)
 			// go p.SendPBFTMsg(payload)
@@ -223,7 +223,7 @@ func (s *server) Commit(proposal bft.Proposal, seals [][]byte) error {
 		s.log.Error("Invalid proposal: %v", proposal)
 		return errProposalInvalid
 	}
-	s.log.Info("server commit a block [1] get the proposed block")
+	s.log.Debug("server commit a block [1] get the proposed block")
 
 	h := block.Header
 
@@ -232,17 +232,17 @@ func (s *server) Commit(proposal bft.Proposal, seals [][]byte) error {
 	if errSeal != nil {
 		return errSeal
 	}
-	s.log.Info("server commit a block [2] writeCommittedSeals")
+	s.log.Debug("server commit a block [2] writeCommittedSeals")
 
 	//3. then update block header
 	block = block.WithSeal(h)
-	s.log.Info("server commit a block [3] Committer address %s hash %s height %d", s.Address().String(), proposal.Hash().String(), proposal.Height())
+	s.log.Debug("server commit a block [3] Committer address %s hash %s height %d", s.Address().String(), proposal.Hash().String(), proposal.Height())
 
 	// 4-1 if the proposed and committed blocks are the same, send the proposed hash
 	//   to commit channel, which is being watched inside the engine.Seal() function.
 	s.proposedBlockHash = block.Hash()
 
-	s.log.Info("server commit a block [4] s.proposedBlockHash %s ?= block.Hash() %s", s.proposedBlockHash, block.Hash())
+	s.log.Debug("server commit a block [4] s.proposedBlockHash %s ?= block.Hash() %s", s.proposedBlockHash, block.Hash())
 
 	if s.proposedBlockHash == block.Hash() {
 		s.commitCh <- block
