@@ -75,7 +75,7 @@ func (s *server) HandleMsg(addr common.Address, message interface{}) (bool, erro
 		go s.bftEventMux.Post(bft.MessageEvent{ // post all
 			Payload: data,
 		})
-		s.log.Info(" [handleMsg] server got msg from peer handle it")
+		s.log.Info(" [handleMsg] server got msg from peer, successfully handled it")
 
 		return true, nil
 	}
