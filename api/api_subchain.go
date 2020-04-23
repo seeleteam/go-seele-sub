@@ -147,10 +147,9 @@ func (api *PublicSubchainAPI) GetTxMerkleInfo(hashHex string) (map[string]interf
 	}
 	var proofs []common.Hash
 	proofs = merkle.GetMerkleProof(level, int(txIdx.Index))
-
-	proofData, err := rlp.EncodeToBytes(proofs)
-	if err != nil {
-		return nil, err
+	var proofData []byte
+	for _, proof := range proofs {
+		proofData = append(proofData, proof.Bytes()...)
 	}
 
 	info := map[string]interface{}{
@@ -225,10 +224,9 @@ func (api *PublicSubchainAPI) GetBalanceMerkleInfo(account common.Address, heigh
 
 	var proofs []common.Hash
 	proofs = merkle.GetMerkleProof(level, int(index))
-
-	proofData, err := rlp.EncodeToBytes(proofs)
-	if err != nil {
-		return nil, err
+	var proofData []byte
+	for _, proof := range proofs {
+		proofData = append(proofData, proof.Bytes()...)
 	}
 
 	info := map[string]interface{}{
@@ -236,7 +234,7 @@ func (api *PublicSubchainAPI) GetBalanceMerkleInfo(account common.Address, heigh
 		"nonce":        nonce,
 		"balance":      balance,
 		"merkle index": index,
-		"merkle proof": proofData,
+		"merkle proof": hexutil.BytesToHex(proofData),
 	}
 	return info, nil
 }
@@ -258,6 +256,7 @@ func (api *PublicSubchainAPI) GetRecentTxTreeRoot(height uint64) (string, error)
 
 // get the merkle index and proof of the recent txs of an account
 func (api *PublicSubchainAPI) GetRecentTxMerkleInfo(account common.Address, height uint64) (map[string]interface{}, error) {
+	rootAccounts := api.s.GenesisInfo().Rootaccounts
 	accountToIndexMap := make(map[common.Address]uint)
 	var accTxs []*types.AccountTxs
 	start := height - common.RelayInterval + 1
@@ -273,8 +272,8 @@ func (api *PublicSubchainAPI) GetRecentTxMerkleInfo(account common.Address, heig
 				continue
 			}
 			val := []interface{}{
-				prevTx.Data.From,
-				prevTx.Data.To,
+				hexutil.MustHexToBytes(prevTx.Data.From.String()),
+				hexutil.MustHexToBytes(prevTx.Data.To.String()),
 				prevTx.Data.Amount,
 				prevTx.Data.AccountNonce,
 				prevTx.Data.GasPrice,
@@ -293,6 +292,9 @@ func (api *PublicSubchainAPI) GetRecentTxMerkleInfo(account common.Address, heig
 					acc = prevTx.Data.To
 				} else {
 					break
+				}
+				if acc == rootAccounts[0] || acc == rootAccounts[1] || acc == rootAccounts[2] {
+					continue
 				}
 				if index, ok := accountToIndexMap[acc]; ok {
 					accTxs[index].Txs = append(accTxs[index].Txs, dataForStem)
@@ -314,30 +316,28 @@ func (api *PublicSubchainAPI) GetRecentTxMerkleInfo(account common.Address, heig
 	// after traversing all the txs
 	var level []common.Hash
 	for _, value := range accTxs {
-		valueBytes, err := rlp.EncodeToBytes(value)
+		valueBytes, err := rlp.EncodeToBytes(value.Txs)
 		if err != nil {
 			return nil, err
 		}
-		level = append(level, crypto.MustHash(valueBytes))
+		level = append(level, crypto.Keccak256Hash(valueBytes))
 	}
 	var index uint
 	index, ok := accountToIndexMap[account]
 	if !ok {
-		// TODO: return error not found
 		return nil, errors.New("Not Found")
 	}
 	var proofs []common.Hash
 	proofs = merkle.GetMerkleProof(level, int(index))
-
-	proofData, err := rlp.EncodeToBytes(proofs)
-	if err != nil {
-		return nil, err
+	var proofData []byte
+	for _, proof := range proofs {
+		proofData = append(proofData, proof.Bytes()...)
 	}
 
 	info := map[string]interface{}{
 		"account":      account,
 		"merkle index": index,
-		"merkle proof": proofData,
+		"merkle proof": hexutil.BytesToHex(proofData),
 	}
 	return info, nil
 }
@@ -359,8 +359,8 @@ func (api *PublicSubchainAPI) GetAccountTx(account common.Address, start uint64,
 			}
 			if account == prevTx.Data.From || account == prevTx.Data.To {
 				val := []interface{}{
-					prevTx.Data.From,
-					prevTx.Data.To,
+					hexutil.MustHexToBytes(prevTx.Data.From.String()),
+					hexutil.MustHexToBytes(prevTx.Data.To.String()),
 					prevTx.Data.Amount,
 					prevTx.Data.AccountNonce,
 					prevTx.Data.GasPrice,
@@ -377,7 +377,11 @@ func (api *PublicSubchainAPI) GetAccountTx(account common.Address, start uint64,
 				if err != nil {
 					return nil, err
 				}
-				sigs = append(sigs, []byte(payloadExtra.SignStringForStem))
+				signForStem, err := rlp.EncodeToBytes([]byte(payloadExtra.SignStringForStem))
+				if err != nil {
+					return nil, err
+				}
+				sigs = append(sigs, signForStem)
 			}
 		}
 	}
@@ -389,10 +393,12 @@ func (api *PublicSubchainAPI) GetAccountTx(account common.Address, start uint64,
 	if err != nil {
 		return nil, err
 	}
+	txsHash := crypto.Keccak256Hash(txsData)
 	info := map[string]interface{}{
 		"account":    account,
-		"txs":        txsData,
-		"signatures": sigsData,
+		"txs":        hexutil.BytesToHex(txsData),
+		"txsHash":    txsHash,
+		"signatures": hexutil.BytesToHex(sigsData),
 	}
 	return info, nil
 }
@@ -484,6 +490,11 @@ func (api *PublicSubchainAPI) GetFee(height uint64) (map[string]interface{}, err
 		"verNum": verNum,
 	}
 	return info, nil
+}
+
+// get block relay interval
+func (api *PublicSubchainAPI) GetRelayInterval() uint64 {
+	return common.RelayInterval
 }
 
 func (api *PublicSubchainAPI) GetStatedbByHeight(height uint64) (*state.Statedb, error) {

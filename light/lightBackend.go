@@ -6,6 +6,7 @@ import (
 	"github.com/seeleteam/go-seele/api"
 	"github.com/seeleteam/go-seele/common"
 	"github.com/seeleteam/go-seele/common/errors"
+	"github.com/seeleteam/go-seele/core"
 	"github.com/seeleteam/go-seele/core/store"
 	"github.com/seeleteam/go-seele/core/types"
 	"github.com/seeleteam/go-seele/database"
@@ -41,6 +42,8 @@ func (l *LightBackend) ChainBackend() api.Chain { return l.s.chain }
 func (l *LightBackend) GetAccountIndexDB() database.Database { return nil }
 
 func (l *LightBackend) GetIndexAccountDB() database.Database { return nil }
+
+func (l *LightBackend) GenesisInfo() core.GenesisInfo { return core.GenesisInfo{} }
 
 // Log gets instance of log
 func (l *LightBackend) Log() *log.SeeleLog { return l.s.log }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/seeleteam/go-seele/common"
+	"github.com/seeleteam/go-seele/common/hexutil"
 	"github.com/seeleteam/go-seele/common/memory"
 	"github.com/seeleteam/go-seele/consensus"
 	"github.com/seeleteam/go-seele/core"
@@ -140,6 +141,7 @@ func (task *Task) applyTransactionsAndDebts(seele SeeleBackend, statedb *state.S
 func (task *Task) getStemHashes(seele SeeleBackend, statedb *state.Statedb, log *log.SeeleLog) (common.Hash, common.Hash, error) {
 	// update hashes for stem
 	var level []common.Hash
+	rootAccounts := seele.GenesisInfo().Rootaccounts
 	for txIndex, tx := range task.txs {
 		if txIndex == 0 {
 			continue
@@ -159,6 +161,10 @@ func (task *Task) getStemHashes(seele SeeleBackend, statedb *state.Statedb, log 
 				account = tx.Data.From
 			} else {
 				account = tx.Data.To
+			}
+
+			if account == rootAccounts[0] || account == rootAccounts[1] || account == rootAccounts[2] {
+				continue
 			}
 
 			//  update accountIndexDB
@@ -197,13 +203,13 @@ func (task *Task) getStemHashes(seele SeeleBackend, statedb *state.Statedb, log 
 		balance := statedb.GetBalance(account)
 		// log.Error("account: %v, index: %d, nonce: %d, balance: %d", account.Hex(), i, nonce, balance)
 		state := []interface{}{
-			account.Bytes(),
+			hexutil.MustHexToBytes(account.String()),
 			balance,
 			nonce,
 		}
 
 		stateBytes, _ := rlp.EncodeToBytes(state)
-		level = append(level, crypto.MustHash(stateBytes))
+		level = append(level, crypto.Keccak256Hash(stateBytes))
 	}
 	stateHashStem := merkle.GetBinaryMerkleRoot(level)
 	// log.Error("stateHashStem: %v", stateHashStem)
@@ -212,6 +218,7 @@ func (task *Task) getStemHashes(seele SeeleBackend, statedb *state.Statedb, log 
 
 func (task *Task) getRecentTxHashStem(seele SeeleBackend, log *log.SeeleLog) (common.Hash, error) {
 	var recentTxHashStem common.Hash
+	rootAccounts := seele.GenesisInfo().Rootaccounts
 	if int(task.header.Height)%int(common.RelayInterval) > 0 {
 		recentTxHashStem = common.EmptyHash
 	} else {
@@ -236,8 +243,8 @@ func (task *Task) getRecentTxHashStem(seele SeeleBackend, log *log.SeeleLog) (co
 					continue
 				}
 				val := []interface{}{
-					prevTx.Data.From,
-					prevTx.Data.To,
+					hexutil.MustHexToBytes(prevTx.Data.From.String()),
+					hexutil.MustHexToBytes(prevTx.Data.To.String()),
 					prevTx.Data.Amount,
 					prevTx.Data.AccountNonce,
 					prevTx.Data.GasPrice,
@@ -256,6 +263,9 @@ func (task *Task) getRecentTxHashStem(seele SeeleBackend, log *log.SeeleLog) (co
 						account = prevTx.Data.To
 					} else {
 						break
+					}
+					if account == rootAccounts[0] || account == rootAccounts[1] || account == rootAccounts[2] {
+						continue
 					}
 					if index, ok := accountToIndexMap[account]; ok {
 						accTxs[index].Txs = append(accTxs[index].Txs, dataForStem)
@@ -276,11 +286,11 @@ func (task *Task) getRecentTxHashStem(seele SeeleBackend, log *log.SeeleLog) (co
 		// after traversing all the txs
 		level := make([]common.Hash, 0)
 		for _, value := range accountToIndexMap {
-			txsBytes, err := rlp.EncodeToBytes(accTxs[value])
+			txsBytes, err := rlp.EncodeToBytes(accTxs[value].Txs)
 			if err != nil {
 				return common.EmptyHash, err
 			}
-			level = append(level, crypto.MustHash(txsBytes))
+			level = append(level, crypto.Keccak256Hash(txsBytes))
 		}
 		recentTxHashStem = merkle.GetBinaryMerkleRoot(level)
 	}

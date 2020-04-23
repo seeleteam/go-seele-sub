@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/seeleteam/go-seele/common"
+	"github.com/seeleteam/go-seele/core"
 	"github.com/seeleteam/go-seele/core/state"
 	"github.com/seeleteam/go-seele/core/store"
 	"github.com/seeleteam/go-seele/core/types"
@@ -28,6 +29,7 @@ type Backend interface {
 
 	GetAccountIndexDB() database.Database
 	GetIndexAccountDB() database.Database
+	GenesisInfo() core.GenesisInfo
 
 	GetBlock(hash common.Hash, height int64) (*types.Block, error)
 	GetBlockTotalDifficulty(hash common.Hash) (*big.Int, error)
