@@ -61,7 +61,7 @@ func (c *core) handleEvents() {
 			c.log.Debug("[handleEvents] get an event %+v", event)
 			switch e := event.Data.(type) {
 			case bft.RequestEvent: // proposal handle
-				c.log.Info("[handleEvents]-1 request event")
+				c.log.Debug("[handleEvents]-1 request event")
 				req := &bft.Request{
 					Proposal: e.Proposal,
 				}
@@ -70,13 +70,13 @@ func (c *core) handleEvents() {
 					c.storeRequestMsg(req)
 				}
 			case bft.MessageEvent: // prepare, commit all other msgs
-				c.log.Info("[handleEvents]-2 msg event")
+				c.log.Debug("[handleEvents]-2 msg event")
 				if err := c.handleMsg(e.Payload); err == nil {
 					c.log.Info("after handleMsg, gossip payload to verifier")
 					c.server.Gossip(c.verSet, e.Payload)
 				}
 			case backlogEvent: // internal event
-				c.log.Info("[handleEvents]-3 backlog event")
+				c.log.Debug("[handleEvents]-3 backlog event")
 				if err := c.handleCheckedMsg(e.msg, e.src); err == nil {
 					p, err := e.msg.Payload()
 					if err != nil {

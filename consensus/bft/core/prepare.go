@@ -45,7 +45,7 @@ func (c *core) handlePrepare(msg *message, src bft.Verifier) error {
 		c.setState(StatePrepared)
 		c.sendCommit()
 	} else {
-		c.log.Info("[Debug] handlePrepare run out from sendCommit")
+		c.log.Debug("[Debug] handlePrepare run out from sendCommit")
 	}
 	return nil
 }
