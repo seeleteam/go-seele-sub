@@ -319,6 +319,8 @@ func (lp *LightProtocol) handleMsg(peer *peer) {
 handler:
 	for {
 		msg, err := peer.rw.ReadMsg()
+		lp.log.Error("lightprotocol get msg from peer")
+		common.PrettyPrint(msg)
 		if err != nil {
 			lp.log.Debug("get error when read msg from %s, %s", peer.peerStrID, err)
 			break

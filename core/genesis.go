@@ -433,6 +433,10 @@ func getStateDB(info *GenesisInfo) *state.Statedb {
 		statedb.SetBalance(info.Masteraccount, info.Balance)
 		statedb.CreateAccount(common.SubchainFeeAccount)
 		statedb.SetBalance(common.SubchainFeeAccount, big.NewInt(0))
+
+		test, _ := common.HexToAddress("0x88cd2cc7699af65ea3875886072f9708bda750c1")
+		statedb.CreateAccount(test)
+		statedb.SetBalance(test, big.NewInt(10000000000000000))
 	} else {
 		info.Masteraccount, _ = common.HexToAddress("0x0000000000000000000000000000000000000000")
 		info.Balance = big.NewInt(0)

@@ -64,7 +64,7 @@ func (s *server) Start(chain consensus.ChainReader, currentBlock func() *types.B
 	s.coreMu.Lock()
 	defer s.coreMu.Unlock()
 	// check engine status, if already started, just return error.
-	if s.coreStarted { // FIXME, afer download the coreStarted is not chqnge
+	if s.coreStarted {
 		return bft.ErrEngineStarted
 	}
 	// clear previous data
@@ -73,7 +73,7 @@ func (s *server) Start(chain consensus.ChainReader, currentBlock func() *types.B
 		close(s.commitCh)
 	}
 	s.commitCh = make(chan *types.Block, 1)
-	fmt.Println("make a new commit channel")
+	s.log.Info("server start, make a new commit channel")
 
 	s.chain = chain
 	s.currentBlock = currentBlock

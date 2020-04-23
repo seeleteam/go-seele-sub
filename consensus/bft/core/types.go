@@ -36,6 +36,35 @@ const (
 	StateCommitted
 )
 
+func (s State) stateToStr() string {
+	switch s {
+	case StateAcceptRequest:
+		return "StateAcceptRequest"
+	case StatePreprepared:
+		return "StatePreprepared"
+	case StatePrepared:
+		return "StatePrepared"
+	case StateCommitted:
+		return "StateCommitted"
+	}
+	return "unknown state"
+}
+
+func (m message) codeToStr() string {
+	switch m.Code {
+	case msgPreprepare:
+		return "msgPreprepare" //TODO
+	case msgPrepare:
+		return "msgPrepare"
+	case msgCommit:
+		return "msgCommit"
+	case msgRoundChange:
+		return "msgRoundChange"
+	default:
+		return "unknown msg code"
+	}
+}
+
 // Cmp compares s and y and returns:
 //   -1 if s is the previous state of y
 //    0 if s and y are the same state

@@ -14,7 +14,7 @@ send /
 
 // sendPreprepare
 func (c *core) sendPreprepare(request *bft.Request) {
-	c.log.Debug("bft-1 sendPreprepare")
+	c.log.Info("bft-1 sendPreprepare")
 	// sequence is the proposal height and this node is the proposer
 	// initiate the preprepare message and encode it
 	c.log.Debug("[TEST sendPreprepare] current seq %d, proposal height %d, IsProposer %t", c.current.Sequence().Uint64(), request.Proposal.Height(), c.isProposer())
@@ -41,8 +41,8 @@ func (c *core) sendPreprepare(request *bft.Request) {
 //
 // Decode -> checkMessage(make usre it is new) -> ensure it is from proposer -> verify proposal received -> accept preprepare
 func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
-	c.log.Debug("bft-1 handlePreprepare msg")
-	c.log.Debug("from: ", src, "state:", c.state)
+	c.log.Info("bft-1 handlePreprepare msg")
+	c.log.Info("from: ", src, "state:", c.state.stateToStr())
 	// 1. Decode preprepare message first
 	var preprepare *bft.Preprepare
 	err := msg.Decode(&preprepare)
@@ -93,12 +93,12 @@ func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
 		}
 		return err
 	}
-	c.log.Info("handlePreprepare->decodeMsg->checkMsg->Verify->AcceptPrepare->SetSate->sendCommit")
+	c.log.Info("handlePreprepare:decodeMsg->checkMsg->Verify->AcceptPrepare->SetSate->sendCommit")
 
 	// accept the preprepare message
 	if c.state == StateAcceptRequest {
 		if c.current.IsHashLocked() { // there is a locked proposal
-			c.log.Debug("[TEST] hash is locked")
+			c.log.Info("[TEST] hash is locked")
 			if preprepare.Proposal.Hash() == c.current.GetLockedHash() { // at the same proposal
 				c.acceptPreprepare(preprepare)
 				c.setState(StatePrepared)
@@ -107,7 +107,7 @@ func (c *core) handlePreprepare(msg *message, src bft.Verifier) error {
 				c.sendNextRoundChange()
 			}
 		} else { // there is no locked proposal
-			c.log.Debug("[TEST] hash is NOT locked")
+			c.log.Info("[TEST] hash is NOT locked")
 			c.acceptPreprepare(preprepare)
 			c.setState(StatePreprepared)
 			c.sendPrepare()

@@ -158,43 +158,8 @@ func (s *server) Broadcast(verSet bft.VerifierSet, payload []byte) error {
 	return nil
 }
 
-// // Gossip sends a message to all Verifiers (exclude self)
-// func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
-// 	hash := crypto.HashBytes(payload)
-// 	s.knownMessages.Add(hash, true)
-
-// 	targets := make(map[common.Address]bool)
-// 	for _, ver := range verSet.List() {
-// 		if ver.Address() != s.Address() { // exclude self
-// 			targets[ver.Address()] = true
-// 		}
-// 	}
-
-// 	// send out message to all targets
-// 	if s.broadcaster != nil && len(targets) > 0 {
-// 		peers := s.broadcaster.FindPeers(targets)
-// 		for addr, p := range peers {
-// 			ms, ok := s.recentMessages.Get(addr)
-// 			var m *lru.ARCCache
-// 			if ok {
-// 				m, _ := ms.(*lru.ARCCache)
-// 				if _, alreadyHave := m.Get(hash); alreadyHave {
-// 					continue
-// 				}
-// 			} else { // not ok, cache it
-// 				m, _ = lru.NewARC(inmemoryMessages)
-// 			}
-// 			m.Add(hash, true)
-// 			s.recentMessages.Add(addr, m)
-// 			go p.Send(bftMsg, payload)
-
-// 		}
-// 	}
-// 	return nil
-// }
-
 func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
-	common.Trace2()
+	// common.Trace2()
 	hash := crypto.HashBytes(payload)
 	s.knownMessages.Add(hash, true)
 
@@ -211,10 +176,10 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 	if s.broadcaster != nil && len(targets) > 0 {
 		s.log.Debug("[TEST] Gossip run here")
 		peers := s.broadcaster.FindPeers(targets)
-		s.log.Debug("[TEST] broadcaster find peers len %d", len(peers))
+		s.log.Info("[TEST] broadcaster find peers len %d", len(peers))
 		for addr, p := range peers {
 			ms, ok := s.recentMessages.Get(addr)
-			common.Trace2()
+			// common.Trace2()
 			var m *lru.ARCCache
 
 			if ok {
@@ -222,23 +187,26 @@ func (s *server) Gossip(verSet bft.VerifierSet, payload []byte) error {
 
 				m, _ = ms.(*lru.ARCCache)
 				if _, alreadyHave := m.Get(hash); alreadyHave {
-					common.Trace2()
+					// common.Trace2()
 					s.log.Info("recent message have the msg, continue")
 					continue
 				}
 			} else { // not ok, cache it
-				s.log.Info("recent message doesn't  have the msg, create a new ARCCache")
-				common.Trace2()
+				s.log.Info("recent message doesn't have the msg, create a new ARCCache")
+				// common.Trace2()
 				// var m *lru.ARCCache
 				m, _ = lru.NewARC(inmemoryMessages)
 			}
 			// // fmt.Printf("hash size %d, ARCcache size %d\n", len(hash), inmemoryMessages)
 			m.Add(hash, true)
-			// common.Trace2()
+			// // common.Trace2()
 			s.recentMessages.Add(addr, m)
-			// common.Trace2()
-			s.log.Debug("[TEST] send payload to peer %s", addr)
-			go p.Send(bftMsg, payload)
+			// // common.Trace2()
+			s.log.Info("[TEST-peer] Gossip send payload to peer %+v", p)
+			common.PrettyPrint(p)
+
+			go p.Send(pbftMsgCode, payload)
+			// go p.SendPBFTMsg(payload)
 
 		}
 	}

@@ -84,6 +84,9 @@ func (c *core) checkVerifierSignature(data []byte, sig []byte) (common.Address, 
 
 //broadcast broadcast finalized msg to verifiers in the verset list
 func (c *core) broadcast(msg *message) {
+	c.log.Info("[TEST] broadcast msg to peer")
+	// common.PrettyPrint(msg)
+
 	payload, err := c.finalizeMessage(msg) //use msg to prepare commited seal with signature
 	if err != nil {
 		c.log.Error("Failed to finalize message. msg %v. err %s. state %d", msg, err, c.state)
@@ -140,7 +143,7 @@ func PrepareCommittedSeal(hash common.Hash) []byte {
 
 // commit commit core'seal data
 func (c *core) commit() {
-	c.log.Debug("bft-4 commit")
+	c.log.Info("bft-4 commit")
 	c.setState(StateCommitted)
 
 	proposal := c.current.Proposal()
@@ -182,8 +185,8 @@ func (c *core) setState(state State) {
 // startNewRound start a new round.
 func (c *core) startNewRound(round *big.Int) {
 
-	common.Trace()
-	c.log.Debug("bft-0 startNewRound")
+	// common.Trace()
+	c.log.Info("bft-0 startNewRound")
 	rounChanged := false
 	//get last proposer and proposal
 	lastProposal, lastProposer := c.server.LastProposal()

@@ -246,6 +246,7 @@ func (p *Peer) Disconnect(reason string) {
 	if p.disconnection != nil {
 		p.disconnection <- reason
 	}
+	p.log.Error("peer Disconnect reason %s", reason)
 }
 
 type protocolRW struct {

@@ -56,6 +56,7 @@ type Broadcaster interface {
 type Peer interface {
 	// Send sends the message to this peer
 	Send(msgcode uint16, data interface{}) error
+	SendPBFTMsg(data interface{}) error
 }
 
 // Protocol defines the protocol of the consensus
@@ -90,6 +91,7 @@ type Handler interface {
 	HandleNewChainHead() error
 	// HandleMsg handles a message from peer
 	HandleMsg(address common.Address, msg interface{}) (bool, error)
+	HandlePBFTMsg(address common.Address, data []byte) (bool, error)
 	// SetBroadcaster sets the broadcaster to send message to peers
 	SetBroadcaster(Broadcaster)
 }

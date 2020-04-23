@@ -311,7 +311,7 @@ func (s *server) verifyCommittedSeals(chain consensus.ChainReader, header *types
 	// if validSealCount <= 2*snap.VerSet.F() { // FIXME <= or <??
 
 	if validSealCount < 2*snap.VerSet.F() {
-		s.log.Debug("validSealCount ", validSealCount, "require ", 2*snap.VerSet.F())
+		s.log.Error("validSealCount ", validSealCount, "require \n", 2*snap.VerSet.F())
 		return errCommittedSealsInvalid
 	}
 	return nil

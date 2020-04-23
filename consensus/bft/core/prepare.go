@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"reflect"
 
 	"github.com/seeleteam/go-seele/consensus/bft"
@@ -9,7 +8,7 @@ import (
 
 // sendPrepare : encode -> broadcast
 func (c *core) sendPrepare() {
-	c.log.Info("state: %+v", c.state)
+	c.log.Info("bft-2 sendPrepare, current state: %s", c.state.stateToStr())
 	subject := c.current.Subject()
 	encodedSubject, err := Encode(subject)
 	if err != nil {
@@ -20,13 +19,13 @@ func (c *core) sendPrepare() {
 		Code: msgPrepare,
 		Msg:  encodedSubject,
 	})
-	fmt.Println("sendPrepare->broadcast->Post")
+	c.log.Info("sendPrepare [done]: broadcast msgPrepare")
 
 }
 
 // handlePrepare: Decode->checkMessage->verify->accept->change state & send commit
 func (c *core) handlePrepare(msg *message, src bft.Verifier) error {
-	c.log.Debug("bft-2 handlePrepare msg")
+	c.log.Info("bft-2 handlePrepare msg")
 	// Decode PREPARE message
 	var prepare *bft.Subject
 	if err := msg.Decode(&prepare); err != nil {
@@ -39,14 +38,14 @@ func (c *core) handlePrepare(msg *message, src bft.Verifier) error {
 		return err
 	}
 	c.acceptPrepare(msg, src)
-
-	if ((c.current.IsHashLocked() && prepare.Digest == c.current.GetLockedHash()) || c.current.GetPrepareOrCommitSize() > 2*c.verSet.F()) &&
-		c.state.Cmp(StatePrepared) < 0 {
+	c.log.Info("[bft-2 handlePrepare] handlocked %t, lockhash == prepare.Digest %t, PrepareOrCommitSize %d, state.Cmp(StatePrepared) %d", c.current.IsHashLocked(), prepare.Digest == c.current.GetLockedHash(), c.current.GetPrepareOrCommitSize(), c.state.Cmp(StatePrepared))
+	if ((c.current.IsHashLocked() && prepare.Digest == c.current.GetLockedHash()) || c.current.GetPrepareOrCommitSize() > 2*c.verSet.F()) && c.state.Cmp(StatePrepared) < 0 {
+		// if ((c.current.IsHashLocked() && prepare.Digest == c.current.GetLockedHash()) || c.current.GetPrepareOrCommitSize() > 1) && c.state.Cmp(StatePrepared) < 0 {
 		c.current.LockHash()
 		c.setState(StatePrepared)
 		c.sendCommit()
 	} else {
-		c.log.Debug("[Debug] handlePrepare run out from sendCommit")
+		c.log.Info("[Debug] handlePrepare run out from sendCommit")
 	}
 	return nil
 }

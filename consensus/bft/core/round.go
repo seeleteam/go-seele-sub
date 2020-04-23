@@ -126,7 +126,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 		Code: msgRoundChange,
 		Msg:  payload,
 	})
-	c.log.Warn("sendRoundChange and broadcast to peer!\n\n")
+	c.log.Warn("sendRoundChange and broadcast to peer!")
 
 }
 
@@ -141,6 +141,10 @@ func (c *core) handleRoundChange(msg *message, src bft.Verifier) error {
 	c.log.Debug("[TEST] handle round change")
 	var rc *bft.Subject
 	if err := msg.Decode(&rc); err != nil {
+		return err
+	}
+
+	if err := c.checkMessage(msgRoundChange, rc.View); err != nil {
 		return err
 	}
 	cv := c.currentView()

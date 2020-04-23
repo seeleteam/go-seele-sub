@@ -109,10 +109,18 @@ func (p *peer) Info() *PeerInfo {
 	}
 }
 
+func (p *peer) SendPBFTMsg(data interface{}) error {
+	buff := common.SerializePanic(data)
+	p.log.Info("buff len %d", len(buff))
+
+	return p2p.SendMessage(p.rw, pbftMsgCode, buff)
+}
+
 // Send writes an RLP-encoded message with the given code.
 func (p *peer) Send(msgcode uint16, data interface{}) error {
-	p.log.Info("peer send msgcode %d", msgcode)
 	buff := common.SerializePanic(data)
+	p.log.Info("peer send msgcode %d, buff len %d", msgcode, len(buff))
+
 	return p2p.SendMessage(p.rw, msgcode, buff)
 }
 

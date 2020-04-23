@@ -37,10 +37,10 @@ var (
 
 	statusDataMsgCode      uint16 = 6
 	statusChainHeadMsgCode uint16 = 7
+	pbftMsgCode            uint16 = 15
+	debtMsgCode            uint16 = 13
 
-	debtMsgCode uint16 = 13
-
-	protocolMsgCodeLength uint16 = 14
+	protocolMsgCodeLength uint16 = 16
 )
 
 func codeToStr(code uint16) string {
@@ -63,6 +63,8 @@ func codeToStr(code uint16) string {
 		return "statusChainHeadMsgCode"
 	case debtMsgCode:
 		return "debtMsgCode"
+	case pbftMsgCode:
+		return "pbftMsgCode"
 	}
 
 	return downloader.CodeToStr(code)
@@ -479,6 +481,8 @@ func (p *SeeleProtocol) handleMsg(peer *peer) {
 handler:
 	for {
 		msg, err := peer.rw.ReadMsg()
+		p.log.Debug("seeleprotocol get msg from peer with len %d", len(msg.Payload))
+		// common.PrettyPrint(msg)
 
 		if err != nil {
 			p.log.Debug("get error when read msg from %s, %s", peer.peerStrID, err)
@@ -720,6 +724,9 @@ handler:
 				headList = append(headList, head)
 			}
 
+			p.log.Error("[TEST-peer] sendBlockHeaders with peer %+v", peer)
+			common.PrettyPrint(p)
+
 			go peer.sendBlockHeaders(query.Magic, headList)
 
 			// exit
@@ -813,7 +820,23 @@ handler:
 
 			// exit
 			memory.Print(p.log, "handleMsg statusChainHeadMsgCode exit", now, true)
-
+		case pbftMsgCode:
+			// entrance
+			memory.Print(p.log, "handleMsg pbftMsgCode entrance", now, false)
+			// p.log.Warn("\n\n msg code: pbftMsgCode %d \n\n", pbftMsgCode)
+			if bftHandler, ok := p.engine.(consensus.Handler); ok {
+				addr := peer.peerID
+				handled, err := bftHandler.HandlePBFTMsg(addr, msg.Payload)
+				if handled {
+					p.log.Debug("engine: pbft, err: msg handled")
+					continue
+				}
+				if err != nil {
+					p.log.Info("engine: pbft, err: %s", err)
+					// return
+					continue
+				}
+			}
 		default:
 			p.log.Warn("unknown code %d", msg.Code)
 		}
